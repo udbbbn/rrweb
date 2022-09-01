@@ -72,9 +72,9 @@ function addStyleNode(fragment: DocumentFragment, container: HTMLElement) {
  * first-screen alone setting
  */
 async function setFirstScreen() {
-  document.documentElement.innerHTML = (
-    await loseEfficacy(queue.shift() as HTMLHtmlElement)
-  ).querySelector("html")!.innerHTML;
+  // document.documentElement.innerHTML = (
+  //   await loseEfficacy(queue.shift() as HTMLHtmlElement)
+  // ).querySelector("html")!.innerHTML;
 }
 
 function replay() {
