@@ -1,11 +1,16 @@
-import { nodeType } from "./constant";
+import { NodeType } from "./constant";
+import { loseEfficacy } from "./utils";
 
 let id = 0;
 
-type Atom = {
+export type Atom = {
   id: number;
-  type: nodeType;
+  type: NodeType;
   childNodes: Atom[];
+  /**
+   * root node own this property
+   */
+  namespaceURI?: string | null;
   tagName?: string;
   attributes?: Record<string, any>;
   textContent?: string | null;
@@ -39,7 +44,7 @@ const actionQueue: Action[] = [];
 /**
  * this variable will change along with dom tree
  */
-const mirror = new WeakMap<Node, Atom>();
+export const mirror = new WeakMap<Node, Atom>();
 (window as any).mirror = mirror;
 /**
  * this variable record origin dom tree data only
@@ -58,7 +63,7 @@ const observer = new MutationObserver((mutationList, observer) => {
           mutation.addedNodes.forEach((node) => {
             const tree = {
               id: 0,
-              type: nodeType[node.nodeType] as unknown as nodeType,
+              type: NodeType[node.nodeType] as unknown as NodeType,
               childNodes: [],
             };
             nodeMapping(node, tree);
@@ -67,8 +72,12 @@ const observer = new MutationObserver((mutationList, observer) => {
               parentId: mirror.get(mutation.target)!.id,
               id: mirror.get(node)!.id,
               atom: tree,
-              source: ActionSource.Mutation,
-              type: ActionType.AddChildNode,
+              source: ActionSource[
+                ActionSource.Mutation
+              ] as unknown as ActionSource,
+              type: ActionType[
+                ActionType.AddChildNode
+              ] as unknown as ActionType,
             });
           });
         }
@@ -77,8 +86,12 @@ const observer = new MutationObserver((mutationList, observer) => {
             nodeMapping(node);
             actionQueue.push({
               id: mirror.get(node)!.id,
-              source: ActionSource.Mutation,
-              type: ActionType.RemoveChildNode,
+              source: ActionSource[
+                ActionSource.Mutation
+              ] as unknown as ActionSource,
+              type: ActionType[
+                ActionType.RemoveChildNode
+              ] as unknown as ActionType,
             });
           });
         }
@@ -117,13 +130,16 @@ const observer = new MutationObserver((mutationList, observer) => {
 });
 
 function initialization() {
-  window.addEventListener("load", () => {
+  window.addEventListener("load", async () => {
     const rootNode = document.getRootNode();
+    await loseEfficacy(rootNode as unknown as HTMLHtmlElement);
     originTree = {
       id: ++id,
-      type: nodeType[rootNode.nodeType] as unknown as nodeType,
+      type: NodeType[rootNode.nodeType] as unknown as NodeType,
+      namespaceURI: document.documentElement.namespaceURI,
       childNodes: [],
     };
+    (window as any).originTree = originTree;
     nodeMapping(rootNode, originTree);
     documentObserve();
   });
@@ -151,10 +167,10 @@ function documentObserve() {
 function getDomAtom(node: Node): Atom {
   return {
     id: ++id,
-    type: nodeType[node.nodeType] as unknown as nodeType,
+    type: NodeType[node.nodeType] as unknown as NodeType,
     childNodes: [],
     tagName: node.nodeName.toLowerCase(),
-    ...(node.nodeType === nodeType.Element
+    ...(node.nodeType === NodeType.Element
       ? {
           attributes: (node as HTMLElement).getAttributeNames().reduce(
             (t, c) => ({
@@ -165,7 +181,7 @@ function getDomAtom(node: Node): Atom {
           ),
         }
       : {}),
-    ...(node.nodeType === nodeType.Text
+    ...(node.nodeType === NodeType.Text
       ? { textContent: node.textContent }
       : {}),
   };
@@ -196,4 +212,4 @@ function nodeChildMapping(rootNode: Node, tree?: Atom) {
 
 export default initialization;
 
-export { actionQueue as queue };
+export { actionQueue as queue, originTree as tree };

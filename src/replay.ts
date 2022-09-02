@@ -1,80 +1,82 @@
-import { queue } from "./record";
-import { request } from "./utils";
+import { NodeType } from "./constant";
+import { Atom, queue, tree, mirror } from "./record";
+import { request, setAttributes } from "./utils";
 
-/**
- * The purpose is replace script tag to noscript tag
- *
- * Script needn't load because we can record web mutation
- * And we should ensure style load correct
- * @param node HTMLHtmlElement
- * @returns node
- */
-async function loseEfficacy(node: HTMLHtmlElement) {
-  const linkUrls: string[] = [];
-  node.querySelectorAll("script").forEach((scriptEle) => {
-    const noscript = document.createElement("noscript");
-    const attributes = scriptEle.getAttributeNames();
-    attributes.forEach((attr) => {
-      noscript.setAttribute(attr, scriptEle.getAttribute(attr)!);
-    });
-    scriptEle.parentNode!.replaceChild(noscript, scriptEle);
-  });
-  /**
-   * i don't know why replace tag make content of head move to body when rel attribute of tag equal 'shortcut icon'
-   */
-  node.querySelectorAll("[rel=stylesheet]").forEach((linkEle) => {
-    const nolink = document.createElement("nolink");
-    const attributes = linkEle.getAttributeNames();
-    attributes.forEach((attr) => {
-      const value = linkEle.getAttribute(attr)!;
-      if (attr === "href") linkUrls.push(value);
-      nolink.setAttribute(attr, value);
-    });
-    linkEle.replaceWith(linkEle);
-  });
-  if (linkUrls.length) {
-    const styles = await loadCss(linkUrls);
-    const fragment = parseStyleNode(styles);
-    addStyleNode(fragment, node.querySelector("head")!);
-  }
-  return node;
-}
-
-/**
- * request css link
- * @param linkUrls link url array
- * @returns Promise
- */
-async function loadCss(linkUrls: string[]) {
-  return Promise.all(linkUrls.map((link) => request(link)));
-}
-
-/**
- * parse style string and return fragment
- * @param styles style string array
- * @returns DocumentFragment
- */
-function parseStyleNode(styles: string[]) {
-  const fragment = document.createDocumentFragment();
-  styles.forEach((str) => {
-    const style = document.createElement("style");
-    style.appendChild(document.createTextNode(str));
-    fragment.appendChild(style);
-  });
-  return fragment;
-}
-
-function addStyleNode(fragment: DocumentFragment, container: HTMLElement) {
-  container.insertBefore(fragment, container.lastChild);
-}
+let doc: XMLDocument;
 
 /**
  * first-screen alone setting
  */
 async function setFirstScreen() {
-  // document.documentElement.innerHTML = (
-  //   await loseEfficacy(queue.shift() as HTMLHtmlElement)
-  // ).querySelector("html")!.innerHTML;
+  /**
+   * the doctype always equal <!DOCTYPE html> at present.
+   */
+  const docType = document.implementation.createDocumentType("html", "", "");
+  const fragment = document.createDocumentFragment();
+  createElementByTree(tree, fragment, docType);
+  doc.documentElement.appendChild(fragment);
+  document.open();
+  document.write(new XMLSerializer().serializeToString(doc));
+  document.close();
+}
+
+function recursionChild(n: Atom, container: Node) {
+  if (n.childNodes.length) {
+    createElementByTree(n, container);
+  }
+}
+
+/**
+ * recover dom tree
+ *
+ * @param node
+ * @param container
+ * @param docType
+ */
+function createElementByTree(
+  node: Atom,
+  container: Node,
+  docType?: DocumentType
+) {
+  node.childNodes.forEach((n) => {
+    /**
+     * type === nodeType.Element
+     */
+    if (n.type === (NodeType[NodeType.Element] as unknown as NodeType)) {
+      /**
+       * create Document
+       */
+      if (n.tagName === "html") {
+        doc = document.implementation.createDocument(
+          tree.namespaceURI || "",
+          "html",
+          docType
+        );
+        setAttributes(doc.querySelector("html")!, n);
+        mirror.set(doc, n);
+        recursionChild(n, container);
+      } else {
+        /**
+         * normal element
+         */
+        const ele = doc.createElement(n.tagName!);
+        setAttributes(ele, n);
+        container.appendChild(ele);
+        mirror.set(ele, n);
+        recursionChild(n, container);
+      }
+      /**
+       * type === nodeType.Text
+       */
+    } else if (n.type === (NodeType[NodeType.Text] as unknown as NodeType)) {
+      /**
+       * set textContext
+       */
+      const ele = doc.createTextNode(n.textContent!);
+      container.appendChild(ele);
+      mirror.set(ele, n);
+    }
+  });
 }
 
 function replay() {
