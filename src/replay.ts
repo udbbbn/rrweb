@@ -63,7 +63,7 @@ function createElementByTree(
         setAttributes(ele, n);
         container.appendChild(ele);
         mirror.set(ele, n);
-        recursionChild(n, container);
+        recursionChild(n, ele);
       }
       /**
        * type === nodeType.Text
