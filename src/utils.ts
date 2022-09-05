@@ -82,13 +82,31 @@ function addStyleNode(fragment: DocumentFragment, container: HTMLElement) {
   container.insertBefore(fragment, container.lastChild);
 }
 
+/**
+ * set attribute
+ */
 export function setAttributes(ele: Element, n: Atom) {
-  /**
-   * set attribute
-   */
   if (n.attributes) {
     Object.entries(n.attributes).forEach(([key, value]) => {
       ele.setAttribute(key, value);
     });
   }
+}
+
+/**
+ * if attribute of an object is relative path
+ * it needs to translate to an absolute path
+ * @param attribute
+ * @returns
+ */
+export function autoCompletionURL(attribute: string | null) {
+  if (attribute) {
+    if (attribute.startsWith("./") || attribute.startsWith("../")) {
+      return window.location.href + attribute;
+    }
+    if (attribute.startsWith("/")) {
+      return window.location.origin + attribute;
+    }
+  }
+  return attribute;
 }

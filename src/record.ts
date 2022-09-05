@@ -1,5 +1,5 @@
 import { NodeType } from "./constant";
-import { loseEfficacy } from "./utils";
+import { autoCompletionURL, loseEfficacy } from "./utils";
 
 let id = 0;
 
@@ -165,25 +165,27 @@ function documentObserve() {
  * @returns
  */
 function getDomAtom(node: Node): Atom {
+  const attributes =
+    node.nodeType === NodeType.Element
+      ? {
+          attributes: (node as HTMLElement).getAttributeNames().reduce(
+            (t, c) => ({
+              ...t,
+              [c]: autoCompletionURL((node as HTMLElement).getAttribute(c)),
+            }),
+            {}
+          ),
+        }
+      : {};
+  const textContent =
+    node.nodeType === NodeType.Text ? { textContent: node.textContent } : {};
   return {
     id: ++id,
     type: NodeType[node.nodeType] as unknown as NodeType,
     childNodes: [],
     tagName: node.nodeName.toLowerCase(),
-    ...(node.nodeType === NodeType.Element
-      ? {
-          attributes: (node as HTMLElement).getAttributeNames().reduce(
-            (t, c) => ({
-              ...t,
-              [c]: (node as HTMLElement).getAttribute(c),
-            }),
-            {}
-          ),
-        }
-      : {}),
-    ...(node.nodeType === NodeType.Text
-      ? { textContent: node.textContent }
-      : {}),
+    ...attributes,
+    ...textContent,
   };
 }
 
