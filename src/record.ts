@@ -33,7 +33,7 @@ type Action = {
    * when type === ActionType.AddChildNode, parentId is the new-Node parent node
    */
   parentId?: number;
-  atom?: Atom;
+  changer?: Atom | string | Record<string, string>;
   source: ActionSource;
   type: ActionType;
 };
@@ -51,8 +51,7 @@ export const mirror = new WeakMap<Node, Atom>();
  */
 let originTree: Atom;
 /**
- * when recording specification of mirror-variable is { [dom]: { id: Number, source: '', type: '' } }
- * when replaying specification of mirror-variable is { [id] : { id: Number, source: '', type: '' } }
+ * when recording/replaying specification of mirror-variable is { [dom]: { id: Number, source: '', type: '' } }
  */
 
 const observer = new MutationObserver((mutationList, observer) => {
@@ -71,7 +70,7 @@ const observer = new MutationObserver((mutationList, observer) => {
             actionQueue.push({
               parentId: mirror.get(mutation.target)!.id,
               id: mirror.get(node)!.id,
-              atom: tree,
+              changer: tree,
               source: ActionSource[
                 ActionSource.Mutation
               ] as unknown as ActionSource,
@@ -97,35 +96,50 @@ const observer = new MutationObserver((mutationList, observer) => {
         }
         break;
       }
+      case "characterData": {
+        const node = mutation.target;
+        actionQueue.push({
+          id: mirror.get(node)!.id,
+          changer: (node as Text).data,
+          source: ActionSource[
+            ActionSource.Mutation
+          ] as unknown as ActionSource,
+          type: ActionType[ActionType.Character] as unknown as ActionType,
+        });
+        break;
+      }
+      case "attributes": {
+        const { target: node, oldValue } = mutation;
+        const newValue = (mutation.target as HTMLElement).getAttribute(
+          mutation.attributeName!
+        )!;
+        /**
+         * avoid inserting repeat action into queue.
+         *
+         * In addition, oldValue is equal to '' probably and that newValue equals null possibly.
+         * And the reverse is also true.
+         * this situation not handled for the time being.
+         */
+        if (oldValue === newValue) return;
+        let changer: Record<string, string> = {
+          [mutation.attributeName!]: newValue,
+        };
+        if (mutation.attributeName === "class") {
+          changer = { className: (node as HTMLElement).className };
+        }
+        actionQueue.push({
+          id: mirror.get(node)!.id,
+          changer,
+          source: ActionSource[
+            ActionSource.Mutation
+          ] as unknown as ActionSource,
+          type: ActionType[ActionType.Attributes] as unknown as ActionType,
+        });
+        break;
+      }
       default:
         break;
     }
-    // if (mutation.type === "attributes") {
-    //   if (mutation.attributeName === "class") {
-    //     console.log("mirror target", mirror.get(mutation.target));
-    //     console.log("-target", mutation.target);
-    //     console.log(
-    //       "current className: ",
-    //       (mutation.target as HTMLElement).className
-    //     );
-    //   } else {
-    //     console.group("attributes change");
-    //     console.log("target", mutation.target);
-    //     console.log("props: ", mutation.attributeName);
-    //     console.log("oldValue: ", mutation.oldValue);
-    //     console.log(
-    //       "curValue: ",
-    //       (mutation.target as any)[mutation.attributeName as any]
-    //     );
-    //     console.groupEnd();
-    //   }
-    // }
-    // if (mutation.type === "characterData") {
-    //   console.group("characterData change");
-    //   console.log("oldValue: ", mutation.oldValue);
-    //   console.log("curValue: ", mutation.target);
-    //   console.groupEnd();
-    // }
   });
 });
 
