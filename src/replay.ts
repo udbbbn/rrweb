@@ -1,6 +1,6 @@
 import { NodeType } from "./constant";
 import { Atom, queue, tree, mirror } from "./record";
-import { request, setAttributes } from "./utils";
+import { createSandbox, escape2Html, request, setAttributes } from "./utils";
 
 let doc: XMLDocument;
 
@@ -14,10 +14,21 @@ async function setFirstScreen() {
   const docType = document.implementation.createDocumentType("html", "", "");
   const fragment = document.createDocumentFragment();
   createElementByTree(tree, fragment, docType);
-  doc.documentElement.appendChild(fragment);
-  document.open();
-  document.write(new XMLSerializer().serializeToString(doc));
+  const htmlDoc = document.implementation.createHTMLDocument();
+  htmlDoc.body.style.margin = "0px";
+  /**
+   * https://developer.mozilla.org/en-US/docs/Web/API/XMLSerializer
+   */
+  document.write(new XMLSerializer().serializeToString(htmlDoc));
   document.close();
+  /**
+   * create sandbox ensure inline scripts don't work.
+   */
+  const iframe = await createSandbox(document.body);
+  doc.documentElement.appendChild(fragment);
+  iframe.contentDocument?.write(
+    escape2Html(new XMLSerializer().serializeToString(doc))
+  );
 }
 
 function recursionChild(n: Atom, container: Node) {
@@ -61,6 +72,12 @@ function createElementByTree(
          */
         const ele = doc.createElement(n.tagName!);
         setAttributes(ele, n);
+        /**
+         * iframe sandbox does't allow script
+         */
+        if (n.tagName === "noscript") {
+          ele.style.display = "none";
+        }
         container.appendChild(ele);
         mirror.set(ele, n);
         recursionChild(n, ele);

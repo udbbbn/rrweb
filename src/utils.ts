@@ -110,3 +110,40 @@ export function autoCompletionURL(attribute: string | null) {
   }
   return attribute;
 }
+
+/**
+ * sandbox ensure code isolation.
+ *
+ * @param container
+ * @returns
+ */
+export async function createSandbox(container: HTMLElement) {
+  return new Promise<HTMLIFrameElement>((resolve) => {
+    const frame = document.createElement("iframe");
+    frame.setAttribute("sandbox", "allow-same-origin");
+    frame.setAttribute("frameborder", "0");
+    frame.style.width = "100vw";
+    frame.style.height = "100vh";
+    frame.onload = () => {
+      resolve(frame);
+    };
+    container.appendChild(frame);
+  });
+}
+
+/**
+ * new XMLSerializer().serializeToString method will escape.
+ * so we need use this method handle.
+ *
+ * @param str
+ * @returns
+ */
+export function escape2Html(str: string) {
+  const arrEntities = { lt: "<", gt: ">", nbsp: " ", amp: "&", quot: '"' };
+  return str.replace(
+    /&(lt|gt|nbsp|amp|quot);/gi,
+    function (all, t: keyof typeof arrEntities) {
+      return arrEntities[t];
+    }
+  );
+}
