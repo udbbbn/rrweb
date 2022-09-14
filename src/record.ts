@@ -1,5 +1,5 @@
 import { NodeType } from "./constant";
-import { autoCompletionURL, loseEfficacy } from "./utils";
+import { autoCompletionURL, loseEfficacy, mutationCompare } from "./utils";
 
 let id = 0;
 
@@ -29,7 +29,7 @@ enum ActionType {
 
 type NodeMappingOtherProps = {
   isMutation: boolean;
-  invalidNodes: Map<Node, number>;
+  invalidNodes: WeakMap<Node, number>;
 };
 
 type Action = {
@@ -63,8 +63,26 @@ const observer = new MutationObserver((mutationList, observer) => {
   /**
    * variable of list no processing is required.
    */
-  const invalidNodes = new Map<Node, number>();
-  mutationList.forEach((mutation) => {
+  const invalidNodes = new WeakMap<Node, number>();
+  /**
+   * Recording node attribute of mutation, filtering repeated action for current mutation.
+   */
+  const attributeNodes = new Map<
+    Node,
+    {
+      initialValue: string | null;
+      currentValue: string | null;
+      index: number;
+    }
+  >();
+  const attributeAction: Action[] = [];
+  console.group("step");
+  /**
+   * The sort method ensures the data what the type is "childList" at the front of the list.
+   * If a node is deleted, it will needn't change other data.
+   */
+  mutationList.sort(mutationCompare).forEach((mutation, index) => {
+    console.log(mutation.type, ":", mutation);
     switch (mutation.type) {
       case "childList": {
         if (mutation.removedNodes.length) {
@@ -162,13 +180,30 @@ const observer = new MutationObserver((mutationList, observer) => {
           mutation.attributeName!
         )!;
         /**
-         * avoid inserting repeat action into queue.
+         * Avoid inserting repeated actions into the queue.
          *
-         * In addition, oldValue is equal to '' probably and that newValue equals null possibly.
+         * In addition, the old-Value is equal to '' probably and alternative the new-Value equals null possibly.
          * And the reverse is also true.
-         * this situation not handled for the time being.
+         * This situation is not handled for the time.
          */
         if (oldValue === newValue) return;
+        /**
+         * record value
+         */
+        const nodeInRecord = attributeNodes.get(node);
+        if (!nodeInRecord) {
+          attributeNodes.set(node, {
+            initialValue: oldValue,
+            currentValue: null,
+            index,
+          });
+        } else {
+          attributeNodes.set(node, {
+            initialValue: nodeInRecord.initialValue,
+            currentValue: newValue,
+            index,
+          });
+        }
         let changer: Record<string, string> = {
           [mutation.attributeName!]: newValue,
         };
@@ -177,14 +212,17 @@ const observer = new MutationObserver((mutationList, observer) => {
         }
         const id = mirror.get(node)?.id;
         if (id) {
-          actionQueue.push({
+          /**
+           * collect before processing
+           */
+          attributeAction[index] = {
             id,
             changer,
             source: ActionSource[
               ActionSource.Mutation
             ] as unknown as ActionSource,
             type: ActionType[ActionType.Attributes] as unknown as ActionType,
-          });
+          };
         }
         break;
       }
@@ -192,6 +230,13 @@ const observer = new MutationObserver((mutationList, observer) => {
         break;
     }
   });
+
+  for (const node of attributeNodes.values()) {
+    if (node.initialValue !== node.currentValue) {
+      actionQueue.push(attributeAction[node.index]);
+    }
+  }
+  console.groupEnd();
 });
 
 function initialization() {
@@ -273,7 +318,7 @@ function nodeMapping(
 
 function invalidNodeCheck(
   isMutation: boolean,
-  invalidNodes: Map<Node, number>,
+  invalidNodes: WeakMap<Node, number>,
   node: Node
 ) {
   if (isMutation) {

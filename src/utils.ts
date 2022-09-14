@@ -147,3 +147,19 @@ export function escape2Html(str: string) {
     }
   );
 }
+
+/**
+ * sort method
+ * @param a
+ * @param b
+ * @returns
+ */
+export function mutationCompare(a: MutationRecord, b: MutationRecord) {
+  return a.type === "childList"
+    ? b.type === "childList"
+      ? 0
+      : -1
+    : b.type === "childList"
+    ? 1
+    : 0;
+}
