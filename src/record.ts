@@ -76,13 +76,20 @@ const observer = new MutationObserver((mutationList, observer) => {
     }
   >();
   const attributeAction: Action[] = [];
-  console.group("step");
+  const characterNodes = new Map<
+    Node,
+    {
+      initialValue: string | null;
+      currentValue: string | null;
+      index: number;
+    }
+  >();
+  const characterAction: Action[] = [];
   /**
    * The sort method ensures the data what the type is "childList" at the front of the list.
    * If a node is deleted, it will needn't change other data.
    */
   mutationList.sort(mutationCompare).forEach((mutation, index) => {
-    console.log(mutation.type, ":", mutation);
     switch (mutation.type) {
       case "childList": {
         if (mutation.removedNodes.length) {
@@ -152,14 +159,28 @@ const observer = new MutationObserver((mutationList, observer) => {
         break;
       }
       case "characterData": {
-        const node = mutation.target;
+        const { target: node, oldValue } = mutation;
         const isInvalid = invalidNodeCheck(true, invalidNodes!, node);
         if (isInvalid) {
           break;
         }
+        const newValue = (mutation.target as Text).data;
+        if (oldValue === newValue) return;
+        /**
+         * record value
+         */
+        const nodeInRecord = characterNodes.get(node);
+        characterNodes.set(node, {
+          initialValue: !nodeInRecord ? oldValue : nodeInRecord.initialValue,
+          currentValue: newValue,
+          index,
+        });
         const id = mirror.get(node)?.id;
         if (id) {
-          actionQueue.push({
+          /**
+           * collect before processing
+           */
+          characterAction.push({
             id,
             changer: (node as Text).data,
             source: ActionSource[
@@ -191,19 +212,11 @@ const observer = new MutationObserver((mutationList, observer) => {
          * record value
          */
         const nodeInRecord = attributeNodes.get(node);
-        if (!nodeInRecord) {
-          attributeNodes.set(node, {
-            initialValue: oldValue,
-            currentValue: null,
-            index,
-          });
-        } else {
-          attributeNodes.set(node, {
-            initialValue: nodeInRecord.initialValue,
-            currentValue: newValue,
-            index,
-          });
-        }
+        attributeNodes.set(node, {
+          initialValue: !nodeInRecord ? oldValue : nodeInRecord.initialValue,
+          currentValue: newValue,
+          index,
+        });
         let changer: Record<string, string> = {
           [mutation.attributeName!]: newValue,
         };
@@ -236,7 +249,12 @@ const observer = new MutationObserver((mutationList, observer) => {
       actionQueue.push(attributeAction[node.index]);
     }
   }
-  console.groupEnd();
+
+  for (const node of characterNodes.values()) {
+    if (node.initialValue !== node.currentValue) {
+      actionQueue.push(characterAction[node.index]);
+    }
+  }
 });
 
 function initialization() {
