@@ -27,6 +27,11 @@ enum ActionType {
   RemoveChildNode,
 }
 
+type NodeMappingOtherProps = {
+  isMutation: boolean;
+  invalidNodes: Map<Node, number>;
+};
+
 type Action = {
   id: number;
   /**
@@ -55,61 +60,104 @@ let originTree: Atom;
  */
 
 const observer = new MutationObserver((mutationList, observer) => {
+  /**
+   * variable of list no processing is required.
+   */
+  const invalidNodes = new Map<Node, number>();
   mutationList.forEach((mutation) => {
     switch (mutation.type) {
       case "childList": {
-        if (mutation.addedNodes.length) {
-          mutation.addedNodes.forEach((node) => {
-            const tree = {
-              id: 0,
-              type: NodeType[node.nodeType] as unknown as NodeType,
-              childNodes: [],
-            };
-            nodeMapping(node, tree);
-            tree.id = mirror.get(node)!.id;
-            actionQueue.push({
-              parentId: mirror.get(mutation.target)!.id,
-              id: mirror.get(node)!.id,
-              changer: tree,
-              source: ActionSource[
-                ActionSource.Mutation
-              ] as unknown as ActionSource,
-              type: ActionType[
-                ActionType.AddChildNode
-              ] as unknown as ActionType,
-            });
-          });
-        }
         if (mutation.removedNodes.length) {
           mutation.removedNodes.forEach((node) => {
-            nodeMapping(node);
-            actionQueue.push({
-              id: mirror.get(node)!.id,
-              source: ActionSource[
-                ActionSource.Mutation
-              ] as unknown as ActionSource,
-              type: ActionType[
-                ActionType.RemoveChildNode
-              ] as unknown as ActionType,
-            });
+            const id = mirror.get(node)?.id;
+            if (id) {
+              /**
+               * if id not exist, we can think about the node existing in the addedNodes list.
+               * And we should delete it directly from the addedNodes list.
+               */
+              actionQueue.push({
+                id,
+                source: ActionSource[
+                  ActionSource.Mutation
+                ] as unknown as ActionSource,
+                type: ActionType[
+                  ActionType.RemoveChildNode
+                ] as unknown as ActionType,
+              });
+            } else {
+              invalidNodes.set(node, 1);
+            }
+          });
+        }
+        /**
+         * create node n1 append to body, then create node n2 append to n1.
+         * because this observer is an asynchronous function, it already includes n2
+         * when mutation-record acquires n1.
+         * In order to solve this problem, we will be judging of node exist when node recursion.
+         */
+        if (mutation.addedNodes.length) {
+          mutation.addedNodes.forEach((node) => {
+            const isInvalid = invalidNodeCheck(true, invalidNodes!, node);
+            if (!isInvalid) {
+              const tree = {
+                id: 0,
+                type: NodeType[node.nodeType] as unknown as NodeType,
+                childNodes: [],
+              };
+              /**
+               * if this variable is true, it can prove the node has existed in dom-tree.
+               * we should jump over it.
+               */
+              const isExist = mirror.get(node);
+              nodeMapping(node, tree, {
+                isMutation: true,
+                invalidNodes,
+              });
+              if (!isExist) {
+                const id = mirror.get(node)!.id;
+                tree.id = id;
+                actionQueue.push({
+                  parentId: mirror.get(mutation.target)!.id,
+                  id,
+                  changer: tree,
+                  source: ActionSource[
+                    ActionSource.Mutation
+                  ] as unknown as ActionSource,
+                  type: ActionType[
+                    ActionType.AddChildNode
+                  ] as unknown as ActionType,
+                });
+              }
+            }
           });
         }
         break;
       }
       case "characterData": {
         const node = mutation.target;
-        actionQueue.push({
-          id: mirror.get(node)!.id,
-          changer: (node as Text).data,
-          source: ActionSource[
-            ActionSource.Mutation
-          ] as unknown as ActionSource,
-          type: ActionType[ActionType.Character] as unknown as ActionType,
-        });
+        const isInvalid = invalidNodeCheck(true, invalidNodes!, node);
+        if (isInvalid) {
+          break;
+        }
+        const id = mirror.get(node)?.id;
+        if (id) {
+          actionQueue.push({
+            id,
+            changer: (node as Text).data,
+            source: ActionSource[
+              ActionSource.Mutation
+            ] as unknown as ActionSource,
+            type: ActionType[ActionType.Character] as unknown as ActionType,
+          });
+        }
         break;
       }
       case "attributes": {
         const { target: node, oldValue } = mutation;
+        const isInvalid = invalidNodeCheck(true, invalidNodes!, node);
+        if (isInvalid) {
+          break;
+        }
         const newValue = (mutation.target as HTMLElement).getAttribute(
           mutation.attributeName!
         )!;
@@ -127,14 +175,17 @@ const observer = new MutationObserver((mutationList, observer) => {
         if (mutation.attributeName === "class") {
           changer = { className: (node as HTMLElement).className };
         }
-        actionQueue.push({
-          id: mirror.get(node)!.id,
-          changer,
-          source: ActionSource[
-            ActionSource.Mutation
-          ] as unknown as ActionSource,
-          type: ActionType[ActionType.Attributes] as unknown as ActionType,
-        });
+        const id = mirror.get(node)?.id;
+        if (id) {
+          actionQueue.push({
+            id,
+            changer,
+            source: ActionSource[
+              ActionSource.Mutation
+            ] as unknown as ActionSource,
+            type: ActionType[ActionType.Attributes] as unknown as ActionType,
+          });
+        }
         break;
       }
       default:
@@ -203,10 +254,35 @@ function getDomAtom(node: Node): Atom {
   };
 }
 
-function nodeMapping(rootNode: Node, tree?: Atom) {
+function nodeMapping(
+  rootNode: Node,
+  tree: Atom,
+  other?: NodeMappingOtherProps
+) {
+  const { isMutation, invalidNodes } = other || {};
+  if (isMutation) {
+    const isInvalid = invalidNodeCheck(isMutation, invalidNodes!, rootNode);
+    if (isInvalid) return;
+  }
   const n: Atom = getDomAtom(rootNode);
-  mirror.set(rootNode, n);
-  nodeChildMapping(rootNode, tree);
+  if (!mirror.get(rootNode)) {
+    mirror.set(rootNode, n);
+    nodeChildMapping(rootNode, tree);
+  }
+}
+
+function invalidNodeCheck(
+  isMutation: boolean,
+  invalidNodes: Map<Node, number>,
+  node: Node
+) {
+  if (isMutation) {
+    const num = invalidNodes!.get(node);
+    if (num) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -217,12 +293,23 @@ function nodeMapping(rootNode: Node, tree?: Atom) {
  * @param rootNode
  * @param tree
  */
-function nodeChildMapping(rootNode: Node, tree?: Atom) {
+function nodeChildMapping(
+  rootNode: Node,
+  tree?: Atom,
+  other?: NodeMappingOtherProps
+) {
+  const { isMutation, invalidNodes } = other || {};
   rootNode.childNodes.forEach((node) => {
+    if (isMutation) {
+      const isInvalid = invalidNodeCheck(isMutation, invalidNodes!, node);
+      if (isInvalid) return;
+    }
     const n: Atom = getDomAtom(node);
     tree && tree.childNodes.push(n);
-    mirror.set(node, n);
-    nodeChildMapping(node, n);
+    if (!mirror.get(node)) {
+      mirror.set(node, n);
+      nodeChildMapping(node, n);
+    }
   });
 }
 
