@@ -20,7 +20,7 @@ enum ActionSource {
   Mutation,
 }
 
-enum ActionType {
+export enum ActionType {
   Attributes,
   Character,
   AddChildNode,
@@ -32,7 +32,7 @@ type NodeMappingOtherProps = {
   invalidNodes: WeakMap<Node, number>;
 };
 
-type Action = {
+export type Action = {
   id: number;
   /**
    * when type === ActionType.AddChildNode, parentId is the new-Node parent node

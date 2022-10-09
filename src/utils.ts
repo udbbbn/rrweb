@@ -120,7 +120,7 @@ export function autoCompletionURL(attribute: string | null) {
 export async function createSandbox(container: HTMLElement) {
   return new Promise<HTMLIFrameElement>((resolve) => {
     const frame = document.createElement("iframe");
-    frame.setAttribute("sandbox", "allow-same-origin");
+    // frame.setAttribute("sandbox", "allow-same-origin");
     frame.setAttribute("frameborder", "0");
     frame.style.width = "100vw";
     frame.style.height = "100vh";
