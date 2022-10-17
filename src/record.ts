@@ -127,20 +127,22 @@ const observer = new MutationObserver((mutationList, observer) => {
               const tree = {
                 id: 0,
                 type: NodeType[node.nodeType] as unknown as NodeType,
-                childNodes: [],
+                childNodes: [] as Atom[],
               };
               /**
                * if this variable is true, it can prove the node has existed in dom-tree.
                * we should jump over it.
                */
               const isExist = mirror.get(node);
-              nodeMapping(node, tree, {
-                isMutation: true,
-                invalidNodes,
-              });
               if (!isExist) {
-                const id = mirror.get(node)!.id;
+                nodeMapping(node, {
+                  isMutation: true,
+                  invalidNodes,
+                });
+                const n = mirror.get(node);
+                const id = n!.id;
                 tree.id = id;
+                tree.childNodes = [n!];
                 actionQueue.push({
                   parentId: mirror.get(mutation.target)!.id,
                   id,
@@ -220,9 +222,6 @@ const observer = new MutationObserver((mutationList, observer) => {
         let changer: Record<string, string> = {
           [mutation.attributeName!]: newValue,
         };
-        if (mutation.attributeName === "class") {
-          changer = { className: (node as HTMLElement).className };
-        }
         const id = mirror.get(node)?.id;
         if (id) {
           /**
@@ -261,14 +260,7 @@ function initialization() {
   window.addEventListener("load", async () => {
     const rootNode = document.getRootNode();
     await loseEfficacy(rootNode as unknown as HTMLHtmlElement);
-    originTree = {
-      id: ++id,
-      type: NodeType[rootNode.nodeType] as unknown as NodeType,
-      namespaceURI: document.documentElement.namespaceURI,
-      childNodes: [],
-    };
-    (window as any).originTree = originTree;
-    nodeMapping(rootNode, originTree);
+    nodeMapping(rootNode);
     documentObserve();
   });
 }
@@ -317,20 +309,20 @@ function getDomAtom(node: Node): Atom {
   };
 }
 
-function nodeMapping(
-  rootNode: Node,
-  tree: Atom,
-  other?: NodeMappingOtherProps
-) {
+function nodeMapping(rootNode: Node, other?: NodeMappingOtherProps) {
   const { isMutation, invalidNodes } = other || {};
   if (isMutation) {
     const isInvalid = invalidNodeCheck(isMutation, invalidNodes!, rootNode);
     if (isInvalid) return;
   }
   const n: Atom = getDomAtom(rootNode);
+  if (!originTree) {
+    n.namespaceURI = document.documentElement.namespaceURI;
+    originTree = n;
+  }
   if (!mirror.get(rootNode)) {
     mirror.set(rootNode, n);
-    nodeChildMapping(rootNode, tree);
+    nodeChildMapping(rootNode, n);
   }
 }
 
@@ -358,7 +350,7 @@ function invalidNodeCheck(
  */
 function nodeChildMapping(
   rootNode: Node,
-  tree?: Atom,
+  tree: Atom,
   other?: NodeMappingOtherProps
 ) {
   const { isMutation, invalidNodes } = other || {};
