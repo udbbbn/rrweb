@@ -12,3 +12,24 @@ export enum NodeType {
   "DocumentType" = 10,
   "DocumentFragment" = 11,
 }
+
+export const SvgTypes = [
+  "rect",
+  "circle",
+  "ellipse",
+  "line",
+  "polygon",
+  "polyline",
+  "svg",
+  "text",
+  "g",
+  "filter",
+  "feGaussianBlur",
+  "feOffset",
+  "feBlend",
+  "linearGradient",
+  "stop",
+  "radialGradient",
+  "path",
+  "defs",
+];

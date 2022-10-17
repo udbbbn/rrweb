@@ -1,4 +1,4 @@
-import { NodeType } from "./constant";
+import { NodeType, SvgTypes } from "./constant";
 import { Atom, queue, tree, Action, ActionType } from "./record";
 import { createSandbox, escape2Html, request, setAttributes } from "./utils";
 
@@ -7,7 +7,7 @@ let doc: XMLDocument;
 /**
  * when replaying specification of mirror-variable is { [id]: { id: Number, source: '', type: '' } }
  */
-const mirror = new Map<Atom["id"], HTMLElement | Text>();
+const mirror = new Map<Atom["id"], HTMLElement | Text | SVGElement>();
 
 (window as any).replayMirror = mirror;
 
@@ -82,13 +82,17 @@ function createElementByTree(
           docType
         );
         setAttributes(doc.querySelector("html")!, n);
-        // mirror.set(doc, n);
         recursionChild(n, container);
       } else {
         /**
          * normal element
          */
-        const ele = doc.createElement(n.tagName!);
+        let ele;
+        if (SvgTypes.includes(n.tagName!)) {
+          ele = doc.createElementNS("http://www.w3.org/2000/svg", n.tagName!);
+        } else {
+          ele = doc.createElement(n.tagName!);
+        }
         setAttributes(ele, n);
         /**
          * iframe sandbox does't allow script
