@@ -38,6 +38,8 @@ export type Action = {
    * when type === ActionType.AddChildNode, parentId is the new-Node parent node
    */
   parentId?: number;
+  nextSibling?: number | null;
+  previousSibling?: number | null;
   changer?: Atom | string | Record<string, string>;
   source: ActionSource;
   type: ActionType;
@@ -134,6 +136,10 @@ const observer = new MutationObserver((mutationList, observer) => {
                * we should jump over it.
                */
               const isExist = mirror.get(node);
+              const nextSibling =
+                node.nextSibling && mirror.get(node.nextSibling)?.id;
+              const previousSibling =
+                node.previousSibling && mirror.get(node.previousSibling)?.id;
               if (!isExist) {
                 nodeMapping(node, {
                   isMutation: true,
@@ -147,6 +153,8 @@ const observer = new MutationObserver((mutationList, observer) => {
                   parentId: mirror.get(mutation.target)!.id,
                   id,
                   changer: tree,
+                  nextSibling,
+                  previousSibling,
                   source: ActionSource[
                     ActionSource.Mutation
                   ] as unknown as ActionSource,

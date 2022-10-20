@@ -2,12 +2,14 @@ import { NodeType, SvgTypes } from "./constant";
 import { Atom, queue, tree, Action, ActionType } from "./record";
 import { createSandbox, escape2Html, request, setAttributes } from "./utils";
 
+type AtomElement = HTMLElement | Text | SVGElement;
+
 let doc: XMLDocument;
 
 /**
  * when replaying specification of mirror-variable is { [id]: { id: Number, source: '', type: '' } }
  */
-const mirror = new Map<Atom["id"], HTMLElement | Text | SVGElement>();
+const mirror = new Map<Atom["id"], AtomElement>();
 
 (window as any).replayMirror = mirror;
 
@@ -20,7 +22,7 @@ async function setFirstScreen() {
    */
   const docType = document.implementation.createDocumentType("html", "", "");
   const fragment = document.createDocumentFragment();
-  createElementByTree(tree, fragment, docType);
+  createElementByTree(tree, fragment, { docType });
   const htmlDoc = document.implementation.createHTMLDocument();
   htmlDoc.body.style.margin = "0px";
   /**
@@ -46,7 +48,7 @@ async function setFirstScreen() {
   iframeDoc?.appendChild(fragment);
   setTimeout(() => {
     replayStep();
-  }, 300);
+  });
 }
 
 function recursionChild(n: Atom, container: Node) {
@@ -65,8 +67,22 @@ function recursionChild(n: Atom, container: Node) {
 function createElementByTree(
   node: Atom,
   container: Node,
-  docType?: DocumentType
+  options?: {
+    docType?: DocumentType;
+    nextSibling?: AtomElement | null;
+    previousSibling?: AtomElement | null;
+  }
 ) {
+  const { docType, nextSibling, previousSibling } = options || {};
+  const append = (ele: AtomElement) => {
+    if (previousSibling && previousSibling.nextSibling) {
+      container.insertBefore(ele, previousSibling.nextSibling);
+    } else if (nextSibling) {
+      container.insertBefore(ele, nextSibling);
+    } else {
+      container.appendChild(ele);
+    }
+  };
   node.childNodes.forEach((n) => {
     /**
      * type === nodeType.Element
@@ -87,7 +103,7 @@ function createElementByTree(
         /**
          * normal element
          */
-        let ele;
+        let ele: AtomElement;
         if (SvgTypes.includes(n.tagName!)) {
           ele = doc.createElementNS("http://www.w3.org/2000/svg", n.tagName!);
         } else {
@@ -100,7 +116,7 @@ function createElementByTree(
         if (n.tagName === "noscript") {
           ele.style.display = "none";
         }
-        container.appendChild(ele);
+        append(ele);
         mirror.set(n.id, ele);
         recursionChild(n, ele);
       }
@@ -112,45 +128,48 @@ function createElementByTree(
        * set textContext
        */
       const ele = doc.createTextNode(n.textContent!);
-      container.appendChild(ele);
+      append(ele);
       mirror.set(n.id, ele);
     }
   });
 }
 
 function replayStep() {
-  let step: Action | undefined;
-  while ((step = queue.shift())) {
-    switch (step.type) {
-      case ActionType[ActionType.AddChildNode] as unknown as ActionType: {
-        mirror.get(step.parentId!) &&
-          createElementByTree(
-            step.changer as Atom,
-            mirror.get(step.parentId!)!
-          );
-        break;
-      }
-      case ActionType[ActionType.RemoveChildNode] as unknown as ActionType: {
-        const ele = mirror.get(step.id);
-        ele?.parentNode?.removeChild(ele);
-        break;
-      }
-      case ActionType[ActionType.Attributes] as unknown as ActionType: {
-        const ele = mirror.get(step.id);
-
-        ele &&
-          setAttributes(ele as Element, { attributes: step.changer } as Atom);
-        break;
-      }
-      case ActionType[ActionType.Character] as unknown as ActionType: {
-        const ele = mirror.get(step.id);
-        ele && ((ele as Text).data = step.changer as string);
-        break;
-      }
-      default:
-        break;
+  let step: Action;
+  step = queue.shift()!;
+  switch (step.type) {
+    case ActionType[ActionType.AddChildNode] as unknown as ActionType: {
+      mirror.get(step.parentId!) &&
+        createElementByTree(step.changer as Atom, mirror.get(step.parentId!)!, {
+          nextSibling: mirror.get(step.nextSibling!),
+          previousSibling: mirror.get(step.previousSibling!),
+        });
+      break;
     }
+    case ActionType[ActionType.RemoveChildNode] as unknown as ActionType: {
+      const ele = mirror.get(step.id);
+      ele?.parentNode?.removeChild(ele);
+      break;
+    }
+    case ActionType[ActionType.Attributes] as unknown as ActionType: {
+      const ele = mirror.get(step.id);
+
+      ele &&
+        setAttributes(ele as Element, { attributes: step.changer } as Atom);
+      break;
+    }
+    case ActionType[ActionType.Character] as unknown as ActionType: {
+      const ele = mirror.get(step.id);
+      ele && ((ele as Text).data = step.changer as string);
+      break;
+    }
+    default:
+      break;
   }
+  queue.length &&
+    setTimeout(() => {
+      replayStep();
+    });
 }
 
 function replay() {
