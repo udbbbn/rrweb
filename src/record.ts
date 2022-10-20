@@ -2,6 +2,7 @@ import { NodeType } from "./constant";
 import { autoCompletionURL, loseEfficacy, mutationCompare } from "./utils";
 
 let id = 0;
+let actionBatchNo = 0;
 
 export type Atom = {
   id: number;
@@ -34,6 +35,7 @@ type NodeMappingOtherProps = {
 
 export type Action = {
   id: number;
+  actionBatchNo: number;
   /**
    * when type === ActionType.AddChildNode, parentId is the new-Node parent node
    */
@@ -62,6 +64,7 @@ let originTree: Atom;
  */
 
 const observer = new MutationObserver((mutationList, observer) => {
+  ++actionBatchNo;
   /**
    * variable of list no processing is required.
    */
@@ -104,6 +107,7 @@ const observer = new MutationObserver((mutationList, observer) => {
                */
               actionQueue.push({
                 id,
+                actionBatchNo,
                 source: ActionSource[
                   ActionSource.Mutation
                 ] as unknown as ActionSource,
@@ -151,6 +155,7 @@ const observer = new MutationObserver((mutationList, observer) => {
                 tree.childNodes = [n!];
                 actionQueue.push({
                   parentId: mirror.get(mutation.target)!.id,
+                  actionBatchNo,
                   id,
                   changer: tree,
                   nextSibling,
@@ -179,25 +184,26 @@ const observer = new MutationObserver((mutationList, observer) => {
         /**
          * record value
          */
-        const nodeInRecord = characterNodes.get(node);
-        characterNodes.set(node, {
-          initialValue: !nodeInRecord ? oldValue : nodeInRecord.initialValue,
-          currentValue: newValue,
-          index,
-        });
         const id = mirror.get(node)?.id;
         if (id) {
+          const nodeInRecord = characterNodes.get(node);
+          characterNodes.set(node, {
+            initialValue: !nodeInRecord ? oldValue : nodeInRecord.initialValue,
+            currentValue: newValue,
+            index,
+          });
           /**
            * collect before processing
            */
-          characterAction.push({
+          characterAction[index] = {
             id,
+            actionBatchNo,
             changer: (node as Text).data,
             source: ActionSource[
               ActionSource.Mutation
             ] as unknown as ActionSource,
             type: ActionType[ActionType.Character] as unknown as ActionType,
-          });
+          };
         }
         break;
       }
@@ -218,25 +224,26 @@ const observer = new MutationObserver((mutationList, observer) => {
          * This situation is not handled for the time.
          */
         if (oldValue === newValue) return;
-        /**
-         * record value
-         */
-        const nodeInRecord = attributeNodes.get(node);
-        attributeNodes.set(node, {
-          initialValue: !nodeInRecord ? oldValue : nodeInRecord.initialValue,
-          currentValue: newValue,
-          index,
-        });
         let changer: Record<string, string> = {
           [mutation.attributeName!]: newValue,
         };
         const id = mirror.get(node)?.id;
         if (id) {
           /**
+           * record value
+           */
+          const nodeInRecord = attributeNodes.get(node);
+          attributeNodes.set(node, {
+            initialValue: !nodeInRecord ? oldValue : nodeInRecord.initialValue,
+            currentValue: newValue,
+            index,
+          });
+          /**
            * collect before processing
            */
           attributeAction[index] = {
             id,
+            actionBatchNo,
             changer,
             source: ActionSource[
               ActionSource.Mutation

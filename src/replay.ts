@@ -5,6 +5,7 @@ import { createSandbox, escape2Html, request, setAttributes } from "./utils";
 type AtomElement = HTMLElement | Text | SVGElement;
 
 let doc: XMLDocument;
+let batchNo: number;
 
 /**
  * when replaying specification of mirror-variable is { [id]: { id: Number, source: '', type: '' } }
@@ -46,17 +47,17 @@ async function setFirstScreen() {
   iframeDoc!.removeChild(iframeDoc!.lastChild!);
   iframeDoc!.removeChild(iframeDoc!.lastChild!);
   iframeDoc?.appendChild(fragment);
-  setTimeout(() => {
+  Promise.resolve().then(() => {
     replayStep();
   });
 }
 
 function recursionChild(n: Atom, container: Node) {
+  const render = () => createElementByTree(n, container);
   if (n.childNodes.length) {
-    createElementByTree(n, container);
+    render();
   }
 }
-
 /**
  * recover dom tree
  *
@@ -137,6 +138,7 @@ function createElementByTree(
 function replayStep() {
   let step: Action;
   step = queue.shift()!;
+  batchNo !== step.actionBatchNo && (batchNo = step.actionBatchNo);
   switch (step.type) {
     case ActionType[ActionType.AddChildNode] as unknown as ActionType: {
       mirror.get(step.parentId!) &&
@@ -166,10 +168,13 @@ function replayStep() {
     default:
       break;
   }
-  queue.length &&
-    setTimeout(() => {
+  if (queue[0] && queue[0].actionBatchNo === batchNo) {
+    replayStep();
+  } else if (queue.length) {
+    requestIdleCallback(() => {
       replayStep();
     });
+  }
 }
 
 function replay() {
