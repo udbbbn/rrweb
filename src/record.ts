@@ -1,6 +1,8 @@
-import { NodeType } from "./constant";
+import { NodeType, storagePrefix } from "./constant";
 import { autoCompletionURL, loseEfficacy, mutationCompare } from "./utils";
 
+export const QueueStroageKey = `${storagePrefix}-actionQueue`;
+export const TreeStroageKey = `${storagePrefix}-tree`;
 let id = 0;
 let actionBatchNo = 0;
 
@@ -64,6 +66,7 @@ let originTree: Atom;
  */
 
 const observer = new MutationObserver((mutationList, observer) => {
+  let curQueueIdx = actionQueue.length;
   ++actionBatchNo;
   /**
    * variable of list no processing is required.
@@ -269,13 +272,37 @@ const observer = new MutationObserver((mutationList, observer) => {
       actionQueue.push(characterAction[node.index]);
     }
   }
+
+  /* deposit to localStorage */
+  if (actionQueue.length !== curQueueIdx) {
+    /**
+     * incremental update
+     *
+     * Simulating communication with server.
+     */
+    const waitDepositArray = actionQueue.slice(curQueueIdx);
+    const storageQueue = JSON.parse(
+      localStorage.getItem(QueueStroageKey) || JSON.stringify([])
+    );
+    storageQueue.push(...waitDepositArray);
+    localStorage.setItem(QueueStroageKey, JSON.stringify(storageQueue));
+  }
 });
+
+function clearStorage() {
+  [QueueStroageKey, TreeStroageKey].forEach((k) => {
+    localStorage.removeItem(k);
+  });
+}
 
 function initialization() {
   window.addEventListener("load", async () => {
+    clearStorage();
     const rootNode = document.getRootNode();
     await loseEfficacy(rootNode as unknown as HTMLHtmlElement);
     nodeMapping(rootNode);
+    /* deposit to localStorage */
+    localStorage.setItem(TreeStroageKey, JSON.stringify(originTree));
     documentObserve();
   });
 }
@@ -384,5 +411,3 @@ function nodeChildMapping(
 }
 
 export default initialization;
-
-export { actionQueue as queue, originTree as tree };

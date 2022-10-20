@@ -1,9 +1,17 @@
 import { NodeType, SvgTypes } from "./constant";
-import { Atom, queue, tree, Action, ActionType } from "./record";
+import {
+  Atom,
+  Action,
+  ActionType,
+  TreeStroageKey,
+  QueueStroageKey,
+} from "./record";
 import { createSandbox, escape2Html, request, setAttributes } from "./utils";
 
 type AtomElement = HTMLElement | Text | SVGElement;
 
+let tree: Atom;
+let queue: Action[];
 let doc: XMLDocument;
 let batchNo: number;
 
@@ -178,6 +186,10 @@ function replayStep() {
 }
 
 function replay() {
+  tree = JSON.parse(localStorage.getItem(TreeStroageKey) || JSON.stringify({}));
+  queue = JSON.parse(
+    localStorage.getItem(QueueStroageKey) || JSON.stringify([])
+  );
   setFirstScreen();
 }
 

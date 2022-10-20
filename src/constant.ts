@@ -33,3 +33,5 @@ export const SvgTypes = [
   "path",
   "defs",
 ];
+
+export const storagePrefix = "rrweb";
