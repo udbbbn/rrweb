@@ -179,9 +179,10 @@ function replayStep() {
   if (queue[0] && queue[0].actionBatchNo === batchNo) {
     replayStep();
   } else if (queue.length) {
-    requestIdleCallback(() => {
+    const { timeStamp } = queue[0];
+    setTimeout(() => {
       replayStep();
-    });
+    }, timeStamp - step.timeStamp);
   }
 }
 

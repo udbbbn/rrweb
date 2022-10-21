@@ -38,6 +38,7 @@ type NodeMappingOtherProps = {
 export type Action = {
   id: number;
   actionBatchNo: number;
+  timeStamp: number;
   /**
    * when type === ActionType.AddChildNode, parentId is the new-Node parent node
    */
@@ -111,6 +112,7 @@ const observer = new MutationObserver((mutationList, observer) => {
               actionQueue.push({
                 id,
                 actionBatchNo,
+                timeStamp: new Date().getTime(),
                 source: ActionSource[
                   ActionSource.Mutation
                 ] as unknown as ActionSource,
@@ -160,6 +162,7 @@ const observer = new MutationObserver((mutationList, observer) => {
                   parentId: mirror.get(mutation.target)!.id,
                   actionBatchNo,
                   id,
+                  timeStamp: new Date().getTime(),
                   changer: tree,
                   nextSibling,
                   previousSibling,
@@ -201,6 +204,7 @@ const observer = new MutationObserver((mutationList, observer) => {
           characterAction[index] = {
             id,
             actionBatchNo,
+            timeStamp: new Date().getTime(),
             changer: (node as Text).data,
             source: ActionSource[
               ActionSource.Mutation
@@ -247,6 +251,7 @@ const observer = new MutationObserver((mutationList, observer) => {
           attributeAction[index] = {
             id,
             actionBatchNo,
+            timeStamp: new Date().getTime(),
             changer,
             source: ActionSource[
               ActionSource.Mutation
