@@ -10,21 +10,14 @@ import {
   CursorActionKey,
   CursorActionValue,
 } from "./record";
-import {
-  createCursor,
-  createSandbox,
-  escape2Html,
-  request,
-  setAttributes,
-  sleep,
-} from "./utils";
+import { createCursor, createSandbox, setAttributes, sleep } from "./utils";
 
 type AtomElement = HTMLElement | Text | SVGElement;
 
 let tree: Atom;
 let actionQueue: Action[];
-let cursorQueue: ReturnType<CursorAction["entries"]>;
-let curCursor: ReturnType<typeof cursorQueue["next"]>;
+let cursorQueue: CursorAction[];
+let curCursorIdx = 0;
 let cursorRunning: CursorActionValue[] = [];
 let cursorInstance: HTMLImageElement;
 let doc: XMLDocument;
@@ -164,8 +157,7 @@ async function replayCursorPath() {
   if (!!act) {
     cursorInstance.style.left = `${act.x}px`;
     cursorInstance.style.top = `${act.y}px`;
-    await sleep(20);
-    replayCursorPath();
+    requestAnimationFrame(replayCursorPath);
   } else {
     replayStep();
   }
@@ -174,9 +166,7 @@ async function replayCursorPath() {
 function replayStep() {
   if (!actionQueue.length) return;
   const step = actionQueue.shift()!;
-  const [period, actions]: [CursorActionKey, CursorActionValue[]] =
-    curCursor.value || [{}, []];
-  const { start, end } = period;
+  const actions = cursorQueue[curCursorIdx];
   /* in period */
   if (actions.length && step.timeStamp >= actions[0].timeStamp) {
     /* handle cursor moving  */
@@ -186,9 +176,10 @@ function replayStep() {
     if (limit !== 0) {
       actionQueue.unshift(step);
       cursorRunning = actions.splice(0, limit);
-      if (!actions.length) {
-        curCursor = cursorQueue.next();
-      }
+      /**
+       * If current actions perform completion, the curCursorIdx increase.
+       */
+      !actions.length && ++curCursorIdx;
       return replayCursorPath();
     }
   }
@@ -236,12 +227,9 @@ function replay() {
   actionQueue = JSON.parse(
     localStorage.getItem(QueueStorageKey) || JSON.stringify([])
   );
-  cursorQueue = new Map(
-    JSON.parse(
-      localStorage.getItem(CursorStorageKey) || JSON.stringify([])
-    ) as CursorAction
-  ).entries();
-  curCursor = cursorQueue.next();
+  cursorQueue = JSON.parse(
+    localStorage.getItem(CursorStorageKey) || JSON.stringify([])
+  );
   setFirstScreen();
 }
 

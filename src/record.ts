@@ -58,9 +58,9 @@ const actionQueue: Action[] = [];
 export type CursorActionKey = { start: number; end: number };
 export type CursorActionValue = { x: number; y: number; timeStamp: number };
 
-export type CursorAction = Map<CursorActionKey, CursorActionValue[]>;
+export type CursorAction = CursorActionValue[];
 
-const cursorQueue: CursorAction = new Map();
+const cursorQueue: CursorAction[] = [];
 
 (window as any).cursorQueue = cursorQueue;
 
@@ -339,20 +339,8 @@ function addMouseEvent() {
         const current = { x: clientX, y: clientY, timeStamp };
         if (!cursorArray.length) {
           setTimeout(() => {
-            cursorQueue.set(
-              {
-                start: cursorArray[0].timeStamp,
-                end: cursorArray[cursorArray.length - 1].timeStamp,
-                // - cursorArray.length * 8,
-              },
-              cursorArray.map((el) => ({
-                ...el /* timeStamp: el.timeStamp - 8 */,
-              }))
-            );
-            localStorage.setItem(
-              CursorStorageKey,
-              JSON.stringify([...cursorQueue])
-            );
+            cursorQueue.push([...cursorArray]);
+            localStorage.setItem(CursorStorageKey, JSON.stringify(cursorQueue));
             cursorArray.length = 0;
           }, 500);
         }
