@@ -3,17 +3,32 @@ import {
   Atom,
   Action,
   ActionType,
-  TreeStroageKey,
-  QueueStroageKey,
+  CursorAction,
+  TreeStorageKey,
+  QueueStorageKey,
+  CursorStorageKey,
+  CursorActionKey,
+  CursorActionValue,
 } from "./record";
-import { createSandbox, escape2Html, request, setAttributes } from "./utils";
+import {
+  createCursor,
+  createSandbox,
+  escape2Html,
+  request,
+  setAttributes,
+  sleep,
+} from "./utils";
 
 type AtomElement = HTMLElement | Text | SVGElement;
 
 let tree: Atom;
-let queue: Action[];
+let actionQueue: Action[];
+let cursorQueue: ReturnType<CursorAction["entries"]>;
+let curCursor: ReturnType<typeof cursorQueue["next"]>;
+let cursorRunning: CursorActionValue[] = [];
+let cursorInstance: HTMLImageElement;
 let doc: XMLDocument;
-let batchNo: number;
+// let batchNo: number;
 
 /**
  * when replaying specification of mirror-variable is { [id]: { id: Number, source: '', type: '' } }
@@ -55,6 +70,7 @@ async function setFirstScreen() {
   iframeDoc!.removeChild(iframeDoc!.lastChild!);
   iframeDoc!.removeChild(iframeDoc!.lastChild!);
   iframeDoc?.appendChild(fragment);
+  cursorInstance = createCursor(iframeDoc?.querySelector("body")!);
   Promise.resolve().then(() => {
     replayStep();
   });
@@ -143,10 +159,40 @@ function createElementByTree(
   });
 }
 
+async function replayCursorPath() {
+  let act = cursorRunning.shift()!;
+  if (!!act) {
+    cursorInstance.style.left = `${act.x}px`;
+    cursorInstance.style.top = `${act.y}px`;
+    await sleep(20);
+    replayCursorPath();
+  } else {
+    replayStep();
+  }
+}
+
 function replayStep() {
-  let step: Action;
-  step = queue.shift()!;
-  batchNo !== step.actionBatchNo && (batchNo = step.actionBatchNo);
+  if (!actionQueue.length) return;
+  const step = actionQueue.shift()!;
+  const [period, actions]: [CursorActionKey, CursorActionValue[]] =
+    curCursor.value || [{}, []];
+  const { start, end } = period;
+  /* in period */
+  if (actions.length && step.timeStamp >= actions[0].timeStamp) {
+    /* handle cursor moving  */
+    const limit = actions.filter(
+      (act) => act.timeStamp <= step.timeStamp
+    ).length;
+    if (limit !== 0) {
+      actionQueue.unshift(step);
+      cursorRunning = actions.splice(0, limit);
+      if (!actions.length) {
+        curCursor = cursorQueue.next();
+      }
+      return replayCursorPath();
+    }
+  }
+
   switch (step.type) {
     case ActionType[ActionType.AddChildNode] as unknown as ActionType: {
       mirror.get(step.parentId!) &&
@@ -176,10 +222,9 @@ function replayStep() {
     default:
       break;
   }
-  if (queue[0] && queue[0].actionBatchNo === batchNo) {
-    replayStep();
-  } else if (queue.length) {
-    const { timeStamp } = queue[0];
+
+  if (actionQueue.length) {
+    const { timeStamp } = actionQueue[0];
     setTimeout(() => {
       replayStep();
     }, timeStamp - step.timeStamp);
@@ -187,10 +232,16 @@ function replayStep() {
 }
 
 function replay() {
-  tree = JSON.parse(localStorage.getItem(TreeStroageKey) || JSON.stringify({}));
-  queue = JSON.parse(
-    localStorage.getItem(QueueStroageKey) || JSON.stringify([])
+  tree = JSON.parse(localStorage.getItem(TreeStorageKey) || JSON.stringify({}));
+  actionQueue = JSON.parse(
+    localStorage.getItem(QueueStorageKey) || JSON.stringify([])
   );
+  cursorQueue = new Map(
+    JSON.parse(
+      localStorage.getItem(CursorStorageKey) || JSON.stringify([])
+    ) as CursorAction
+  ).entries();
+  curCursor = cursorQueue.next();
   setFirstScreen();
 }
 

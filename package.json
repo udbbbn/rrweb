@@ -7,6 +7,8 @@
   "author": "udbbbn",
   "license": "MIT",
   "dependencies": {
+    "@types/lodash.throttle": "^4.1.7",
+    "lodash.throttle": "^4.1.1",
     "typescript": "^4.8.2"
   },
   "scripts": {

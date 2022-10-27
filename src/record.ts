@@ -1,8 +1,10 @@
+import throttle from "lodash.throttle";
 import { NodeType, storagePrefix } from "./constant";
 import { autoCompletionURL, loseEfficacy, mutationCompare } from "./utils";
 
-export const QueueStroageKey = `${storagePrefix}-actionQueue`;
-export const TreeStroageKey = `${storagePrefix}-tree`;
+export const QueueStorageKey = `${storagePrefix}-actionQueue`;
+export const TreeStorageKey = `${storagePrefix}-tree`;
+export const CursorStorageKey = `${storagePrefix}-cursor`;
 let id = 0;
 let actionBatchNo = 0;
 
@@ -52,6 +54,15 @@ export type Action = {
 
 const actionQueue: Action[] = [];
 (window as any).actionQueue = actionQueue;
+
+export type CursorActionKey = { start: number; end: number };
+export type CursorActionValue = { x: number; y: number; timeStamp: number };
+
+export type CursorAction = Map<CursorActionKey, CursorActionValue[]>;
+
+const cursorQueue: CursorAction = new Map();
+
+(window as any).cursorQueue = cursorQueue;
 
 /**
  * this variable will change along with dom tree
@@ -287,15 +298,15 @@ const observer = new MutationObserver((mutationList, observer) => {
      */
     const waitDepositArray = actionQueue.slice(curQueueIdx);
     const storageQueue = JSON.parse(
-      localStorage.getItem(QueueStroageKey) || JSON.stringify([])
+      localStorage.getItem(QueueStorageKey) || JSON.stringify([])
     );
     storageQueue.push(...waitDepositArray);
-    localStorage.setItem(QueueStroageKey, JSON.stringify(storageQueue));
+    localStorage.setItem(QueueStorageKey, JSON.stringify(storageQueue));
   }
 });
 
 function clearStorage() {
-  [QueueStroageKey, TreeStroageKey].forEach((k) => {
+  [QueueStorageKey, TreeStorageKey, CursorStorageKey].forEach((k) => {
     localStorage.removeItem(k);
   });
 }
@@ -307,10 +318,54 @@ function initialization() {
     await loseEfficacy(rootNode as unknown as HTMLHtmlElement);
     nodeMapping(rootNode);
     /* deposit to localStorage */
-    localStorage.setItem(TreeStroageKey, JSON.stringify(originTree));
+    localStorage.setItem(TreeStorageKey, JSON.stringify(originTree));
+    addMouseEvent();
     documentObserve();
   });
 }
+
+function addMouseEvent() {
+  /**
+   * Every 20 millseconds record position of cursor.
+   * Every 500 milliseconds put it into the cursorQueue.
+   */
+  let cursorArray: { x: number; y: number; timeStamp: number }[] = [];
+  document.addEventListener(
+    "mousemove",
+    throttle(
+      (ev) => {
+        const timeStamp = new Date().getTime();
+        const { clientX, clientY } = ev;
+        const current = { x: clientX, y: clientY, timeStamp };
+        if (!cursorArray.length) {
+          setTimeout(() => {
+            cursorQueue.set(
+              {
+                start: cursorArray[0].timeStamp,
+                end: cursorArray[cursorArray.length - 1].timeStamp,
+                // - cursorArray.length * 8,
+              },
+              cursorArray.map((el) => ({
+                ...el /* timeStamp: el.timeStamp - 8 */,
+              }))
+            );
+            localStorage.setItem(
+              CursorStorageKey,
+              JSON.stringify([...cursorQueue])
+            );
+            cursorArray.length = 0;
+          }, 500);
+        }
+        cursorArray.push(current);
+      },
+      20,
+      {
+        leading: true,
+      }
+    )
+  );
+}
+
 /**
  * start observe
  */
