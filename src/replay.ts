@@ -15,7 +15,6 @@ import "./index.css";
 
 type AtomElement = HTMLElement | Text | SVGElement;
 
-const tasks: any[] = [];
 let tree: Atom;
 let actionQueue: Action[];
 let cursorQueue: CursorAction[];
@@ -157,24 +156,30 @@ function createElementByTree(
 }
 
 async function replayCursorPath() {
-  let act = cursorRunning.shift()!;
+  const act = cursorRunning.shift()!;
   if (!!act) {
+    const lastCursorTimeStamp = performance.now();
     if (act.type === "move") {
-      tasks.push(() => {
-        cursorInstance.style.left = `${act.x}px`;
-        cursorInstance.style.top = `${act.y}px`;
-      });
-      setTimeout(() => {
-        replayCursorPath();
-      }, 20);
+      cursorInstance.style.left = `${act.x}px`;
+      cursorInstance.style.top = `${act.y}px`;
+      requestAnimationFrame(replayCursorPath);
     } else if (act.type === "click") {
-      tasks.push(() => {
-        cursorInstance.classList.add("rrweb-click");
-        setTimeout(() => {
-          cursorInstance.classList.remove("rrweb-click");
-          replayCursorPath();
-        }, 200);
-      });
+      const wave = document.createElement("div");
+      wave.classList.add("rrweb-click");
+      wave.style.cssText = `position: fixed; z-Index: 999999; left: ${act.x}px; top: ${act.y}px`;
+      globalIframeDoc.appendChild(wave);
+      setTimeout(() => {
+        globalIframeDoc.removeChild(wave);
+      }, 200);
+      cursorInstance.classList.remove("rrweb-click");
+      if (
+        performance.now() - lastCursorTimeStamp + act.timeStamp >
+        cursorRunning[0]?.timeStamp
+      ) {
+        replayCursorPath();
+      } else {
+        requestAnimationFrame(replayCursorPath);
+      }
     }
   } else {
     replayStep();
@@ -210,53 +215,45 @@ function replayStep() {
     }
   }
 
+  const lastTimeStamp = performance.now();
+
   switch (step.type) {
     case ActionType[ActionType.AddChildNode] as unknown as ActionType: {
       mirror.get(step.parentId!) &&
-        tasks.push(() => {
-          createElementByTree(
-            step.changer as Atom,
-            mirror.get(step.parentId!)!,
-            {
-              nextSibling: mirror.get(step.nextSibling!),
-              previousSibling: mirror.get(step.previousSibling!),
-            }
-          );
+        createElementByTree(step.changer as Atom, mirror.get(step.parentId!)!, {
+          nextSibling: mirror.get(step.nextSibling!),
+          previousSibling: mirror.get(step.previousSibling!),
         });
+      break;
     }
     case ActionType[ActionType.RemoveChildNode] as unknown as ActionType: {
       const ele = mirror.get(step.id);
-      if (ele && ele.parentNode) {
-        tasks.push(() => {
-          ele.parentNode!.removeChild(ele);
-        });
-      }
+      ele?.parentNode?.removeChild(ele);
+      break;
     }
     case ActionType[ActionType.Attributes] as unknown as ActionType: {
       const ele = mirror.get(step.id);
 
       ele &&
-        tasks.push(() => {
-          setAttributes(ele as Element, { attributes: step.changer } as Atom);
-        });
+        setAttributes(ele as Element, { attributes: step.changer } as Atom);
+      break;
     }
     case ActionType[ActionType.Character] as unknown as ActionType: {
       const ele = mirror.get(step.id);
-      ele &&
-        tasks.push(() => {
-          (ele as Text).data = step.changer as string;
-        });
+      ele && ((ele as Text).data = step.changer as string);
+      break;
     }
     default:
-      requestIdleCallback(handle, { timeout: 800 });
       break;
   }
 
   if (actionQueue.length) {
     const { timeStamp } = actionQueue[0];
-    setTimeout(() => {
+    if (performance.now() - lastTimeStamp + step.timeStamp > timeStamp) {
       replayStep();
-    }, timeStamp - step.timeStamp);
+    } else {
+      requestAnimationFrame(replayStep);
+    }
   } else if (cursorQueue[curCursorIdx].length) {
     replayStep();
   }
@@ -271,17 +268,6 @@ function replay() {
     localStorage.getItem(CursorStorageKey) || JSON.stringify([])
   );
   setFirstScreen();
-}
-
-function handle(deadline: any) {
-  while (
-    (deadline.timeRemaining() > 0 || deadline.didTimeout) &&
-    tasks.length > 0
-  ) {
-    tasks.shift()();
-  }
-
-  if (tasks.length > 0) requestIdleCallback(handle);
 }
 
 export { replay };
