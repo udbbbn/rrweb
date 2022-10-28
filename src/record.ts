@@ -56,7 +56,12 @@ const actionQueue: Action[] = [];
 (window as any).actionQueue = actionQueue;
 
 export type CursorActionKey = { start: number; end: number };
-export type CursorActionValue = { x: number; y: number; timeStamp: number };
+export type CursorActionValue = {
+  x: number;
+  y: number;
+  timeStamp: number;
+  type: "move" | "click" | "doubleClick";
+};
 
 export type CursorAction = CursorActionValue[];
 
@@ -329,20 +334,53 @@ function addMouseEvent() {
    * Every 20 millseconds record position of cursor.
    * Every 500 milliseconds put it into the cursorQueue.
    */
-  let cursorArray: { x: number; y: number; timeStamp: number }[] = [];
+  let cursorArray: CursorActionValue[] = [];
+  let timeout: any;
+  function launchTimeout(cursorArray: CursorActionValue[]) {
+    timeout = setTimeout(() => {
+      cursorQueue.push([...cursorArray]);
+      localStorage.setItem(CursorStorageKey, JSON.stringify(cursorQueue));
+      cursorArray.length = 0;
+      timeout = null;
+    }, 500);
+  }
   document.addEventListener(
     "mousemove",
     throttle(
       (ev) => {
         const timeStamp = new Date().getTime();
         const { clientX, clientY } = ev;
-        const current = { x: clientX, y: clientY, timeStamp };
-        if (!cursorArray.length) {
-          setTimeout(() => {
-            cursorQueue.push([...cursorArray]);
-            localStorage.setItem(CursorStorageKey, JSON.stringify(cursorQueue));
-            cursorArray.length = 0;
-          }, 500);
+        const current: CursorActionValue = {
+          x: clientX,
+          y: clientY,
+          timeStamp,
+          type: "move",
+        };
+        if (!cursorArray.length && !timeout) {
+          launchTimeout(cursorArray);
+        }
+        cursorArray.push(current);
+      },
+      20,
+      {
+        leading: true,
+      }
+    )
+  );
+  document.addEventListener(
+    "click",
+    throttle(
+      (ev) => {
+        const timeStamp = new Date().getTime();
+        const { clientX, clientY } = ev;
+        const current: CursorActionValue = {
+          x: clientX,
+          y: clientY,
+          timeStamp,
+          type: "click",
+        };
+        if (!cursorArray.length && !timeout) {
+          launchTimeout(cursorArray);
         }
         cursorArray.push(current);
       },

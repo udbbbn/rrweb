@@ -11,16 +11,19 @@ import {
   CursorActionValue,
 } from "./record";
 import { createCursor, createSandbox, setAttributes, sleep } from "./utils";
+import "./index.css";
 
 type AtomElement = HTMLElement | Text | SVGElement;
 
+const tasks: any[] = [];
 let tree: Atom;
 let actionQueue: Action[];
 let cursorQueue: CursorAction[];
 let curCursorIdx = 0;
 let cursorRunning: CursorActionValue[] = [];
-let cursorInstance: HTMLImageElement;
+let cursorInstance: HTMLDivElement;
 let doc: XMLDocument;
+let globalIframeDoc: HTMLElement;
 // let batchNo: number;
 
 /**
@@ -55,6 +58,7 @@ async function setFirstScreen() {
   iframe.contentDocument!.write("<!DOCTYPE html><html></html>");
   iframe.contentDocument!.close();
   const iframeDoc = iframe.contentDocument?.documentElement;
+  globalIframeDoc = iframeDoc!;
   /**
    * delete head & body Node
    *
@@ -155,26 +159,48 @@ function createElementByTree(
 async function replayCursorPath() {
   let act = cursorRunning.shift()!;
   if (!!act) {
-    cursorInstance.style.left = `${act.x}px`;
-    cursorInstance.style.top = `${act.y}px`;
-    requestAnimationFrame(replayCursorPath);
+    if (act.type === "move") {
+      tasks.push(() => {
+        cursorInstance.style.left = `${act.x}px`;
+        cursorInstance.style.top = `${act.y}px`;
+      });
+      setTimeout(() => {
+        replayCursorPath();
+      }, 20);
+    } else if (act.type === "click") {
+      tasks.push(() => {
+        cursorInstance.classList.add("rrweb-click");
+        setTimeout(() => {
+          cursorInstance.classList.remove("rrweb-click");
+          replayCursorPath();
+        }, 200);
+      });
+    }
   } else {
     replayStep();
   }
 }
 
 function replayStep() {
-  if (!actionQueue.length) return;
+  if (
+    !actionQueue.length &&
+    !(cursorQueue[curCursorIdx] && cursorQueue[curCursorIdx].length)
+  )
+    return;
   const step = actionQueue.shift()!;
   const actions = cursorQueue[curCursorIdx];
   /* in period */
-  if (actions.length && step.timeStamp >= actions[0].timeStamp) {
+  if (
+    actions &&
+    actions.length &&
+    (!step || step.timeStamp >= actions[0].timeStamp)
+  ) {
     /* handle cursor moving  */
     const limit = actions.filter(
-      (act) => act.timeStamp <= step.timeStamp
+      (act) => act.timeStamp <= (!step ? Infinity : step.timeStamp)
     ).length;
     if (limit !== 0) {
-      actionQueue.unshift(step);
+      step && actionQueue.unshift(step);
       cursorRunning = actions.splice(0, limit);
       /**
        * If current actions perform completion, the curCursorIdx increase.
@@ -187,30 +213,42 @@ function replayStep() {
   switch (step.type) {
     case ActionType[ActionType.AddChildNode] as unknown as ActionType: {
       mirror.get(step.parentId!) &&
-        createElementByTree(step.changer as Atom, mirror.get(step.parentId!)!, {
-          nextSibling: mirror.get(step.nextSibling!),
-          previousSibling: mirror.get(step.previousSibling!),
+        tasks.push(() => {
+          createElementByTree(
+            step.changer as Atom,
+            mirror.get(step.parentId!)!,
+            {
+              nextSibling: mirror.get(step.nextSibling!),
+              previousSibling: mirror.get(step.previousSibling!),
+            }
+          );
         });
-      break;
     }
     case ActionType[ActionType.RemoveChildNode] as unknown as ActionType: {
       const ele = mirror.get(step.id);
-      ele?.parentNode?.removeChild(ele);
-      break;
+      if (ele && ele.parentNode) {
+        tasks.push(() => {
+          ele.parentNode!.removeChild(ele);
+        });
+      }
     }
     case ActionType[ActionType.Attributes] as unknown as ActionType: {
       const ele = mirror.get(step.id);
 
       ele &&
-        setAttributes(ele as Element, { attributes: step.changer } as Atom);
-      break;
+        tasks.push(() => {
+          setAttributes(ele as Element, { attributes: step.changer } as Atom);
+        });
     }
     case ActionType[ActionType.Character] as unknown as ActionType: {
       const ele = mirror.get(step.id);
-      ele && ((ele as Text).data = step.changer as string);
-      break;
+      ele &&
+        tasks.push(() => {
+          (ele as Text).data = step.changer as string;
+        });
     }
     default:
+      requestIdleCallback(handle, { timeout: 800 });
       break;
   }
 
@@ -219,6 +257,8 @@ function replayStep() {
     setTimeout(() => {
       replayStep();
     }, timeStamp - step.timeStamp);
+  } else if (cursorQueue[curCursorIdx].length) {
+    replayStep();
   }
 }
 
@@ -231,6 +271,17 @@ function replay() {
     localStorage.getItem(CursorStorageKey) || JSON.stringify([])
   );
   setFirstScreen();
+}
+
+function handle(deadline: any) {
+  while (
+    (deadline.timeRemaining() > 0 || deadline.didTimeout) &&
+    tasks.length > 0
+  ) {
+    tasks.shift()();
+  }
+
+  if (tasks.length > 0) requestIdleCallback(handle);
 }
 
 export { replay };
