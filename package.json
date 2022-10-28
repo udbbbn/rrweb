@@ -3,15 +3,22 @@
   "version": "1.0.0",
   "description": "record and replay from web",
   "main": "lib/index.js",
+  "type": "module",
   "repository": "git@github.com:udbbbn/rrweb.git",
   "author": "udbbbn",
   "license": "MIT",
   "dependencies": {
-    "@types/lodash.throttle": "^4.1.7",
-    "lodash.throttle": "^4.1.1",
     "typescript": "^4.8.2"
   },
   "scripts": {
-    "ts-w": "npx tsc -w"
+    "dev": "npx rollup -c -w",
+    "build": "npx rollup -c"
+  },
+  "devDependencies": {
+    "@types/lodash.throttle": "^4.1.7",
+    "lodash.throttle": "^4.1.1",
+    "postcss": "^8.4.18",
+    "rollup-plugin-postcss": "^4.0.2",
+    "rollup-plugin-ts": "^3.0.2"
   }
 }
