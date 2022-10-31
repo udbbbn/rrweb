@@ -55,7 +55,6 @@ export type Action = {
 const actionQueue: Action[] = [];
 (window as any).actionQueue = actionQueue;
 
-export type CursorActionKey = { start: number; end: number };
 export type CursorActionValue = {
   x: number;
   y: number;
@@ -344,6 +343,14 @@ function addMouseEvent() {
       timeout = null;
     }, 500);
   }
+
+  function push(cur: CursorActionValue) {
+    if (!cursorArray.length && !timeout) {
+      launchTimeout(cursorArray);
+    }
+    cursorArray.push(cur);
+  }
+
   document.addEventListener(
     "mousemove",
     throttle(
@@ -356,10 +363,7 @@ function addMouseEvent() {
           timeStamp,
           type: "move",
         };
-        if (!cursorArray.length && !timeout) {
-          launchTimeout(cursorArray);
-        }
-        cursorArray.push(current);
+        push(current);
       },
       20,
       {
@@ -379,10 +383,7 @@ function addMouseEvent() {
           timeStamp,
           type: "click",
         };
-        if (!cursorArray.length && !timeout) {
-          launchTimeout(cursorArray);
-        }
-        cursorArray.push(current);
+        push(current);
       },
       20,
       {

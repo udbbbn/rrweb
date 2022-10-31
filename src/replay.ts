@@ -7,10 +7,15 @@ import {
   TreeStorageKey,
   QueueStorageKey,
   CursorStorageKey,
-  CursorActionKey,
   CursorActionValue,
 } from "./record";
-import { createCursor, createSandbox, setAttributes, sleep } from "./utils";
+import {
+  createWaveAnimation,
+  createCursor,
+  createSandbox,
+  setAttributes,
+  setPosition,
+} from "./utils";
 import "./index.css";
 
 type AtomElement = HTMLElement | Text | SVGElement;
@@ -160,18 +165,10 @@ async function replayCursorPath() {
   if (!!act) {
     const lastCursorTimeStamp = performance.now();
     if (act.type === "move") {
-      cursorInstance.style.left = `${act.x}px`;
-      cursorInstance.style.top = `${act.y}px`;
+      setPosition(cursorInstance, { x: act.x, y: act.y });
       requestAnimationFrame(replayCursorPath);
     } else if (act.type === "click") {
-      const wave = document.createElement("div");
-      wave.classList.add("rrweb-click");
-      wave.style.cssText = `position: fixed; z-Index: 999999; left: ${act.x}px; top: ${act.y}px`;
-      globalIframeDoc.appendChild(wave);
-      setTimeout(() => {
-        globalIframeDoc.removeChild(wave);
-      }, 200);
-      cursorInstance.classList.remove("rrweb-click");
+      createWaveAnimation(globalIframeDoc, { x: act.x, y: act.y });
       if (
         performance.now() - lastCursorTimeStamp + act.timeStamp >
         cursorRunning[0]?.timeStamp

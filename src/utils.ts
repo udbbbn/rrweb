@@ -160,6 +160,29 @@ export function createCursor(container: HTMLElement) {
   return wrapper;
 }
 
+export function setPosition(
+  container: HTMLElement,
+  coord: { x: number; y: number }
+) {
+  const { x, y } = coord;
+  container.style.left = `${x}px`;
+  container.style.top = `${y}px`;
+}
+
+export function createWaveAnimation(
+  container: HTMLElement,
+  coord: { x: number; y: number }
+) {
+  const { x, y } = coord;
+  const wave = document.createElement("div");
+  wave.classList.add("rrweb-click");
+  wave.style.cssText = `position: fixed; z-Index: 99999999; left: ${x}px; top: ${y}px`;
+  container.appendChild(wave);
+  setTimeout(() => {
+    container.removeChild(wave);
+  }, 300);
+}
+
 export function sleep(timeout: number) {
   return new Promise<void>((resolve, reject) => {
     setTimeout(() => {
