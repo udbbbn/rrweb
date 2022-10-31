@@ -28,7 +28,7 @@ let cursorRunning: CursorActionValue[] = [];
 let cursorInstance: HTMLDivElement;
 let doc: XMLDocument;
 let globalIframeDoc: HTMLElement;
-// let batchNo: number;
+let tasks: Function[] = [];
 
 /**
  * when replaying specification of mirror-variable is { [id]: { id: Number, source: '', type: '' } }
@@ -72,9 +72,7 @@ async function setFirstScreen() {
   iframeDoc!.removeChild(iframeDoc!.lastChild!);
   iframeDoc?.appendChild(fragment);
   cursorInstance = createCursor(iframeDoc?.querySelector("body")!);
-  Promise.resolve().then(() => {
-    replayStep();
-  });
+  requestAnimationFrame(replayStep);
 }
 
 function recursionChild(n: Atom, container: Node) {
@@ -85,6 +83,7 @@ function recursionChild(n: Atom, container: Node) {
 }
 /**
  * recover dom tree
+ * The initial rendering process render immediately.
  *
  * @param node
  * @param container
@@ -160,29 +159,42 @@ function createElementByTree(
   });
 }
 
+function requestRender(deadline: IdleDeadline) {
+  if (tasks.length) {
+    const task = tasks.shift();
+    if (deadline.timeRemaining() > 0) {
+      task!();
+    } else {
+      requestAnimationFrame(task as FrameRequestCallback);
+    }
+  }
+}
+
 async function replayCursorPath() {
   const act = cursorRunning.shift()!;
   if (!!act) {
     const lastCursorTimeStamp = performance.now();
     if (act.type === "move") {
       setPosition(cursorInstance, { x: act.x, y: act.y });
-      requestAnimationFrame(replayCursorPath);
     } else if (act.type === "click") {
       createWaveAnimation(globalIframeDoc, { x: act.x, y: act.y });
-      if (
-        performance.now() - lastCursorTimeStamp + act.timeStamp >
-        cursorRunning[0]?.timeStamp
-      ) {
-        replayCursorPath();
-      } else {
-        requestAnimationFrame(replayCursorPath);
-      }
+    }
+    const curStepRunningTime = performance.now() - lastCursorTimeStamp;
+    if (curStepRunningTime + act.timeStamp > cursorRunning[0]?.timeStamp) {
+      tasks.push(replayCursorPath);
+      requestIdleCallback(requestRender);
+    } else {
+      requestAnimationFrame(replayCursorPath);
     }
   } else {
-    replayStep();
+    tasks.push(replayStep);
+    requestIdleCallback(requestRender);
   }
 }
 
+/**
+ * The step process render when the current frame has idle time else call requestAnimationFrame.
+ */
 function replayStep() {
   if (
     !actionQueue.length &&
@@ -217,27 +229,50 @@ function replayStep() {
   switch (step.type) {
     case ActionType[ActionType.AddChildNode] as unknown as ActionType: {
       mirror.get(step.parentId!) &&
-        createElementByTree(step.changer as Atom, mirror.get(step.parentId!)!, {
-          nextSibling: mirror.get(step.nextSibling!),
-          previousSibling: mirror.get(step.previousSibling!),
+        tasks.push(() => {
+          createElementByTree(
+            step.changer as Atom,
+            mirror.get(step.parentId!)!,
+            {
+              nextSibling: mirror.get(step.nextSibling!),
+              previousSibling: mirror.get(step.previousSibling!),
+            }
+          );
         });
+      requestIdleCallback(requestRender);
       break;
     }
     case ActionType[ActionType.RemoveChildNode] as unknown as ActionType: {
       const ele = mirror.get(step.id);
-      ele?.parentNode?.removeChild(ele);
+      if (ele && ele.parentNode) {
+        tasks.push(() => {
+          ele.parentNode!.removeChild(ele);
+        });
+        requestIdleCallback(requestRender);
+      }
+
       break;
     }
     case ActionType[ActionType.Attributes] as unknown as ActionType: {
       const ele = mirror.get(step.id);
 
-      ele &&
-        setAttributes(ele as Element, { attributes: step.changer } as Atom);
+      if (ele) {
+        tasks.push(() => {
+          setAttributes(ele as Element, { attributes: step.changer } as Atom);
+        });
+        requestIdleCallback(requestRender);
+      }
+
       break;
     }
     case ActionType[ActionType.Character] as unknown as ActionType: {
       const ele = mirror.get(step.id);
-      ele && ((ele as Text).data = step.changer as string);
+      if (ele) {
+        tasks.push(() => {
+          (ele as Text).data = step.changer as string;
+        });
+        requestIdleCallback(requestRender);
+      }
       break;
     }
     default:
@@ -246,13 +281,16 @@ function replayStep() {
 
   if (actionQueue.length) {
     const { timeStamp } = actionQueue[0];
-    if (performance.now() - lastTimeStamp + step.timeStamp > timeStamp) {
-      replayStep();
+    const curStepRunningTime = performance.now() - lastTimeStamp;
+    if (curStepRunningTime + step.timeStamp > timeStamp) {
+      tasks.push(replayStep);
+      requestIdleCallback(requestRender);
     } else {
       requestAnimationFrame(replayStep);
     }
-  } else if (cursorQueue[curCursorIdx].length) {
-    replayStep();
+  } else if (cursorQueue[curCursorIdx] && cursorQueue[curCursorIdx].length) {
+    tasks.push(replayStep);
+    requestIdleCallback(requestRender);
   }
 }
 
