@@ -6,7 +6,6 @@ export const QueueStorageKey = `${storagePrefix}-actionQueue`;
 export const TreeStorageKey = `${storagePrefix}-tree`;
 export const CursorStorageKey = `${storagePrefix}-cursor`;
 let id = 0;
-let actionBatchNo = 0;
 
 export type Atom = {
   id: number;
@@ -21,8 +20,14 @@ export type Atom = {
   textContent?: string | null;
 };
 
+export type Coord = {
+  x: number;
+  y: number;
+};
+
 enum ActionSource {
   Mutation,
+  Scroll,
 }
 
 export enum ActionType {
@@ -30,6 +35,7 @@ export enum ActionType {
   Character,
   AddChildNode,
   RemoveChildNode,
+  ScrollMove,
 }
 
 type NodeMappingOtherProps = {
@@ -39,7 +45,6 @@ type NodeMappingOtherProps = {
 
 export type Action = {
   id: number;
-  actionBatchNo: number;
   timeStamp: number;
   /**
    * when type === ActionType.AddChildNode, parentId is the new-Node parent node
@@ -47,7 +52,7 @@ export type Action = {
   parentId?: number;
   nextSibling?: number | null;
   previousSibling?: number | null;
-  changer?: Atom | string | Record<string, string>;
+  changer?: Atom | string | Record<string, string> | Coord;
   source: ActionSource;
   type: ActionType;
 };
@@ -55,9 +60,7 @@ export type Action = {
 const actionQueue: Action[] = [];
 (window as any).actionQueue = actionQueue;
 
-export type CursorActionValue = {
-  x: number;
-  y: number;
+export type CursorActionValue = Coord & {
   timeStamp: number;
   type: "move" | "click" | "doubleClick";
 };
@@ -83,7 +86,6 @@ let originTree: Atom;
 
 const observer = new MutationObserver((mutationList, observer) => {
   let curQueueIdx = actionQueue.length;
-  ++actionBatchNo;
   /**
    * variable of list no processing is required.
    */
@@ -126,7 +128,6 @@ const observer = new MutationObserver((mutationList, observer) => {
                */
               actionQueue.push({
                 id,
-                actionBatchNo,
                 timeStamp: new Date().getTime(),
                 source: ActionSource[
                   ActionSource.Mutation
@@ -175,7 +176,6 @@ const observer = new MutationObserver((mutationList, observer) => {
                 tree.childNodes = [n!];
                 actionQueue.push({
                   parentId: mirror.get(mutation.target)!.id,
-                  actionBatchNo,
                   id,
                   timeStamp: new Date().getTime(),
                   changer: tree,
@@ -218,7 +218,6 @@ const observer = new MutationObserver((mutationList, observer) => {
            */
           characterAction[index] = {
             id,
-            actionBatchNo,
             timeStamp: new Date().getTime(),
             changer: (node as Text).data,
             source: ActionSource[
@@ -265,7 +264,6 @@ const observer = new MutationObserver((mutationList, observer) => {
            */
           attributeAction[index] = {
             id,
-            actionBatchNo,
             timeStamp: new Date().getTime(),
             changer,
             source: ActionSource[
@@ -316,6 +314,7 @@ function clearStorage() {
 }
 
 function initialization() {
+  kidnapEventListener();
   window.addEventListener("load", async () => {
     clearStorage();
     const rootNode = document.getRootNode();
@@ -323,12 +322,72 @@ function initialization() {
     nodeMapping(rootNode);
     /* deposit to localStorage */
     localStorage.setItem(TreeStorageKey, JSON.stringify(originTree));
-    addMouseEvent();
+    eventListener();
     documentObserve();
   });
 }
 
-function addMouseEvent() {
+function kidnapEventListener() {
+  /**
+   * Every 20 millseconds record position of action.
+   * Every 500 milliseconds put it into the actionQueue.
+   */
+  let actionArray: Action[] = [];
+  let timeout: any;
+  function launchTimeout(actionArray: Action[]) {
+    timeout = setTimeout(() => {
+      const storageQueue = JSON.parse(
+        localStorage.getItem(QueueStorageKey) || JSON.stringify([])
+      );
+      storageQueue.push(...actionArray);
+      localStorage.setItem(QueueStorageKey, JSON.stringify(storageQueue));
+      actionArray.length = 0;
+      timeout = null;
+    }, 500);
+  }
+
+  function push(cur: Action) {
+    if (!actionArray.length && !timeout) {
+      launchTimeout(actionArray);
+    }
+    actionArray.push(cur);
+  }
+  const originMethod = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function (type, listener, ...args) {
+    if (type === "scroll") {
+      const originListener = listener;
+      listener = throttle(
+        (ev) => {
+          const { scrollLeft, scrollTop } = ev.target as HTMLElement;
+          const target = mirror.get(ev.target);
+          if (target) {
+            push({
+              id: target.id,
+              timeStamp: new Date().getTime(),
+              changer: { x: scrollLeft, y: scrollTop },
+              source: ActionSource[
+                ActionSource.Scroll
+              ] as unknown as ActionSource,
+              type: ActionType[ActionType.ScrollMove] as unknown as ActionType,
+            });
+          }
+          if (originListener) {
+            if ("call" in originListener) {
+              originListener!.call(this, ev);
+            } else {
+              originListener?.handleEvent.call(this, ev);
+            }
+          }
+        },
+        20,
+        { leading: true }
+      );
+    }
+    originMethod.call(this, type, listener, ...args);
+  };
+}
+
+function eventListener() {
   /**
    * Every 20 millseconds record position of cursor.
    * Every 500 milliseconds put it into the cursorQueue.

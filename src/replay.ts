@@ -1,4 +1,4 @@
-import { NodeType, SvgTypes } from "./constant";
+import { NodeType, ScrollDirectionIcon, SvgTypes } from "./constant";
 import {
   Atom,
   Action,
@@ -8,6 +8,7 @@ import {
   QueueStorageKey,
   CursorStorageKey,
   CursorActionValue,
+  Coord,
 } from "./record";
 import {
   createWaveAnimation,
@@ -15,6 +16,7 @@ import {
   createSandbox,
   setAttributes,
   setPosition,
+  resetCursorIcon,
 } from "./utils";
 import "./index.css";
 
@@ -170,6 +172,11 @@ function requestRender(deadline: IdleDeadline) {
   }
 }
 
+function pushTask(task: Function) {
+  tasks.push(task);
+  requestIdleCallback(requestRender);
+}
+
 async function replayCursorPath() {
   const act = cursorRunning.shift()!;
   if (!!act) {
@@ -181,19 +188,17 @@ async function replayCursorPath() {
     }
     const curStepRunningTime = performance.now() - lastCursorTimeStamp;
     if (curStepRunningTime + act.timeStamp > cursorRunning[0]?.timeStamp) {
-      tasks.push(replayCursorPath);
-      requestIdleCallback(requestRender);
+      pushTask(replayCursorPath);
     } else {
       requestAnimationFrame(replayCursorPath);
     }
   } else {
-    tasks.push(replayStep);
-    requestIdleCallback(requestRender);
+    pushTask(replayStep);
   }
 }
 
 /**
- * The step process render when the current frame has idle time else call requestAnimationFrame.
+ * The step process render when the current frame has idle time else invoke requestAnimationFrame.
  */
 function replayStep() {
   if (
@@ -229,7 +234,7 @@ function replayStep() {
   switch (step.type) {
     case ActionType[ActionType.AddChildNode] as unknown as ActionType: {
       mirror.get(step.parentId!) &&
-        tasks.push(() => {
+        pushTask(() => {
           createElementByTree(
             step.changer as Atom,
             mirror.get(step.parentId!)!,
@@ -239,40 +244,41 @@ function replayStep() {
             }
           );
         });
-      requestIdleCallback(requestRender);
       break;
     }
     case ActionType[ActionType.RemoveChildNode] as unknown as ActionType: {
       const ele = mirror.get(step.id);
       if (ele && ele.parentNode) {
-        tasks.push(() => {
+        pushTask(() => {
           ele.parentNode!.removeChild(ele);
         });
-        requestIdleCallback(requestRender);
       }
-
       break;
     }
     case ActionType[ActionType.Attributes] as unknown as ActionType: {
       const ele = mirror.get(step.id);
-
-      if (ele) {
-        tasks.push(() => {
+      ele &&
+        pushTask(() => {
           setAttributes(ele as Element, { attributes: step.changer } as Atom);
         });
-        requestIdleCallback(requestRender);
-      }
-
       break;
     }
     case ActionType[ActionType.Character] as unknown as ActionType: {
       const ele = mirror.get(step.id);
-      if (ele) {
-        tasks.push(() => {
+      ele &&
+        pushTask(() => {
           (ele as Text).data = step.changer as string;
         });
-        requestIdleCallback(requestRender);
-      }
+      break;
+    }
+    case ActionType[ActionType.ScrollMove] as unknown as ActionType: {
+      const ele = mirror.get(step.id);
+      ele &&
+        pushTask(() => {
+          const { x, y } = step.changer as Coord;
+          (ele as HTMLElement).scrollLeft = x;
+          (ele as HTMLElement).scrollTop = y;
+        });
       break;
     }
     default:
