@@ -25,9 +25,15 @@ export type Coord = {
   y: number;
 };
 
+export type Shape = {
+  w: number;
+  h: number;
+};
+
 enum ActionSource {
   Mutation,
   Scroll,
+  Resize,
 }
 
 export enum ActionType {
@@ -36,6 +42,7 @@ export enum ActionType {
   AddChildNode,
   RemoveChildNode,
   ScrollMove,
+  Resize,
 }
 
 type NodeMappingOtherProps = {
@@ -52,7 +59,7 @@ export type Action = {
   parentId?: number;
   nextSibling?: number | null;
   previousSibling?: number | null;
-  changer?: Atom | string | Record<string, string> | Coord;
+  changer?: Atom | string | Record<string, string> | Coord | Shape;
   source: ActionSource;
   type: ActionType;
 };
@@ -327,7 +334,7 @@ function initialization() {
   });
 }
 
-function kidnapEventListener() {
+function pushActionArray() {
   /**
    * Every 20 millseconds record position of action.
    * Every 500 milliseconds put it into the actionQueue.
@@ -352,6 +359,12 @@ function kidnapEventListener() {
     }
     actionArray.push(cur);
   }
+
+  return push;
+}
+
+function kidnapEventListener() {
+  const push = pushActionArray();
   const originMethod = EventTarget.prototype.addEventListener;
   EventTarget.prototype.addEventListener = function (type, listener, ...args) {
     if (type === "scroll") {
@@ -387,7 +400,7 @@ function kidnapEventListener() {
   };
 }
 
-function eventListener() {
+function pushCursorArray() {
   /**
    * Every 20 millseconds record position of cursor.
    * Every 500 milliseconds put it into the cursorQueue.
@@ -410,6 +423,12 @@ function eventListener() {
     cursorArray.push(cur);
   }
 
+  return push;
+}
+
+function eventListener() {
+  const push = pushCursorArray();
+  const pushAction = pushActionArray();
   document.addEventListener(
     "mousemove",
     throttle(
@@ -443,6 +462,28 @@ function eventListener() {
           type: "click",
         };
         push(current);
+      },
+      20,
+      {
+        leading: true,
+      }
+    )
+  );
+
+  window.addEventListener(
+    "resize",
+    throttle(
+      () => {
+        const { innerWidth, innerHeight } = window;
+        const timeStamp = new Date().getTime();
+        const current = {
+          id: -1,
+          timeStamp,
+          changer: { w: innerWidth, h: innerHeight },
+          source: ActionSource[ActionSource.Resize] as unknown as ActionSource,
+          type: ActionType[ActionType.Resize] as unknown as ActionType,
+        };
+        pushAction(current);
       },
       20,
       {

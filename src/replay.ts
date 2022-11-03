@@ -9,6 +9,7 @@ import {
   CursorStorageKey,
   CursorActionValue,
   Coord,
+  Shape,
 } from "./record";
 import {
   createWaveAnimation,
@@ -16,7 +17,6 @@ import {
   createSandbox,
   setAttributes,
   setPosition,
-  resetCursorIcon,
 } from "./utils";
 import "./index.css";
 
@@ -279,6 +279,13 @@ function replayStep() {
           (ele as HTMLElement).scrollLeft = x;
           (ele as HTMLElement).scrollTop = y;
         });
+      break;
+    }
+    case ActionType[ActionType.Resize] as unknown as ActionType: {
+      pushTask(() => {
+        const { w, h } = step.changer as Shape;
+        window.resizeTo(w, h);
+      });
       break;
     }
     default:
