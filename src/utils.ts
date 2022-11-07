@@ -141,6 +141,12 @@ export async function createSandbox(container: HTMLElement) {
     frame.setAttribute("frameborder", "0");
     frame.style.width = "100vw";
     frame.style.height = "100vh";
+    /**
+     * Iframe is an inline-block element, so it has an empty inline block element question.
+     *
+     * https://stackoverflow.com/a/62812176/11230375
+     */
+    frame.style.display = "block";
     frame.onload = () => {
       resolve(frame);
     };
