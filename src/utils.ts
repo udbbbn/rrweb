@@ -105,7 +105,15 @@ function addStyleNode(fragment: DocumentFragment, container: HTMLElement) {
 export function setAttributes(ele: Element, n: Atom) {
   if (n.attributes) {
     Object.entries(n.attributes).forEach(([key, value]) => {
-      ele.setAttribute(key, value);
+      if (value === null) {
+        /**
+         * Although the dom element attribute equals null, the parser also deems the attribute is true.
+         * So we have to remove it.
+         */
+        ele.removeAttribute(key);
+      } else {
+        ele.setAttribute(key, value);
+      }
     });
   }
 }
