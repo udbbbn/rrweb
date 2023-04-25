@@ -29,7 +29,10 @@ export function request(url: string, options?: RequestInit) {
     ...options,
   })
     .then((res) => res.text())
-    .then((data) => data);
+    .then((data) => data)
+    .catch((err) => {
+      console.error("rrweb fetch error:", err);
+    });
 }
 
 /**
@@ -65,8 +68,10 @@ export async function loseEfficacy(node: HTMLHtmlElement) {
   });
   if (linkUrls.length) {
     const styles = await loadCss(linkUrls);
-    const fragment = parseStyleNode(styles);
-    addStyleNode(fragment, node.querySelector("head")!);
+    if (styles && styles.length) {
+      const fragment = parseStyleNode(styles as string[]);
+      addStyleNode(fragment, node.querySelector("head")!);
+    }
   }
   return node;
 }
