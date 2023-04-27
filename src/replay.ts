@@ -19,6 +19,7 @@ import {
   setPosition,
 } from "./utils";
 import "./index.css";
+import { ReplayParams } from ".";
 
 type AtomElement = HTMLElement | Text | SVGElement;
 
@@ -307,14 +308,11 @@ function replayStep() {
   }
 }
 
-function replay() {
-  tree = JSON.parse(localStorage.getItem(TreeStorageKey) || JSON.stringify({}));
-  actionQueue = JSON.parse(
-    localStorage.getItem(QueueStorageKey) || JSON.stringify([])
-  );
-  cursorQueue = JSON.parse(
-    localStorage.getItem(CursorStorageKey) || JSON.stringify([])
-  );
+function replay(arg: ReplayParams) {
+  const { fullSnapshot, actions, cursors } = arg;
+  tree = fullSnapshot;
+  actionQueue = actions;
+  cursorQueue = cursors;
   setFirstScreen();
 }
 

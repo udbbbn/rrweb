@@ -1,11 +1,11 @@
 import throttle from "lodash.throttle";
-import { NodeType, storagePrefix } from "./constant";
+import { NodeType, noop, storagePrefix } from "./constant";
 import { autoCompletionURL, loseEfficacy, mutationCompare } from "./utils";
+import { StartParams } from ".";
 
 export const QueueStorageKey = `${storagePrefix}-actionQueue`;
 export const TreeStorageKey = `${storagePrefix}-tree`;
 export const CursorStorageKey = `${storagePrefix}-cursor`;
-let id = 0;
 
 export type Atom = {
   id: number;
@@ -63,9 +63,9 @@ export type Action = {
   source: ActionSource;
   type: ActionType;
 };
+let id = 0;
 
 const actionQueue: Action[] = [];
-(window as any).actionQueue = actionQueue;
 
 export type CursorActionValue = Coord & {
   timeStamp: number;
@@ -74,15 +74,16 @@ export type CursorActionValue = Coord & {
 
 export type CursorAction = CursorActionValue[];
 
+/**
+ * matrix
+ */
 const cursorQueue: CursorAction[] = [];
 
-(window as any).cursorQueue = cursorQueue;
-
+let externalApi: StartParams = { emit: noop };
 /**
  * this variable will change along with dom tree
  */
 export const mirror = new WeakMap<Node, Atom>();
-(window as any).mirror = mirror;
 /**
  * this variable record origin dom tree data only
  */
@@ -306,29 +307,21 @@ const observer = new MutationObserver((mutationList, observer) => {
      * Simulating communication with server.
      */
     const waitDepositArray = actionQueue.slice(curQueueIdx);
-    const storageQueue = JSON.parse(
-      localStorage.getItem(QueueStorageKey) || JSON.stringify([])
-    );
-    storageQueue.push(...waitDepositArray);
-    localStorage.setItem(QueueStorageKey, JSON.stringify(storageQueue));
+    waitDepositArray.length &&
+      externalApi.emit({
+        actions: waitDepositArray,
+      });
   }
 });
 
-function clearStorage() {
-  [QueueStorageKey, TreeStorageKey, CursorStorageKey].forEach((k) => {
-    localStorage.removeItem(k);
-  });
-}
-
-function initialization() {
+function initialization(arg: StartParams) {
+  externalApi = arg;
   kidnapEventListener();
-  window.addEventListener("load", async () => {
-    clearStorage();
+  window.addEventListener(arg.recordAfter!, async () => {
     const rootNode = document.getRootNode();
     await loseEfficacy(rootNode as unknown as HTMLHtmlElement);
     nodeMapping(rootNode);
-    /* deposit to localStorage */
-    localStorage.setItem(TreeStorageKey, JSON.stringify(originTree));
+    externalApi.emit(null, originTree);
     eventListener();
     documentObserve();
   });
@@ -343,13 +336,13 @@ function pushActionArray() {
   let timeout: any;
   function launchTimeout(actionArray: Action[]) {
     timeout = setTimeout(() => {
-      const storageQueue = JSON.parse(
-        localStorage.getItem(QueueStorageKey) || JSON.stringify([])
-      );
-      storageQueue.push(...actionArray);
-      localStorage.setItem(QueueStorageKey, JSON.stringify(storageQueue));
-      actionArray.length = 0;
-      timeout = null;
+      if (actionArray.length) {
+        externalApi.emit({
+          actions: actionArray,
+        });
+        actionArray.length = 0;
+        timeout = null;
+      }
     }, 500);
   }
 
@@ -407,18 +400,22 @@ function pushCursorArray() {
    */
   let cursorArray: CursorActionValue[] = [];
   let timeout: any;
-  function launchTimeout(cursorArray: CursorActionValue[]) {
+  function launchTimeout() {
     timeout = setTimeout(() => {
-      cursorQueue.push([...cursorArray]);
-      localStorage.setItem(CursorStorageKey, JSON.stringify(cursorQueue));
-      cursorArray.length = 0;
-      timeout = null;
+      if (cursorArray.length) {
+        console.log("emit cursorArray.length", JSON.stringify(cursorArray));
+        externalApi.emit({
+          cursors: [[...cursorArray]],
+        });
+        cursorArray.length = 0;
+        timeout = null;
+      }
     }, 500);
   }
 
   function push(cur: CursorActionValue) {
     if (!cursorArray.length && !timeout) {
-      launchTimeout(cursorArray);
+      launchTimeout();
     }
     cursorArray.push(cur);
   }
@@ -431,23 +428,24 @@ function eventListener() {
   const pushAction = pushActionArray();
   document.addEventListener(
     "mousemove",
-    throttle(
-      (ev) => {
-        const timeStamp = new Date().getTime();
-        const { clientX, clientY } = ev;
-        const current: CursorActionValue = {
-          x: clientX,
-          y: clientY,
-          timeStamp,
-          type: "move",
-        };
-        push(current);
-      },
-      20,
-      {
-        leading: true,
-      }
-    )
+    // throttle(
+    (ev) => {
+      const timeStamp = new Date().getTime();
+      const { clientX, clientY } = ev;
+      const current: CursorActionValue = {
+        x: clientX,
+        y: clientY,
+        timeStamp,
+        type: "move",
+      };
+      console.log("cursor current", current);
+      push(current);
+    }
+    // 20,
+    // {
+    //   leading: true,
+    // }
+    // )
   );
   document.addEventListener(
     "click",

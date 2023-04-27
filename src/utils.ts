@@ -172,11 +172,11 @@ export function createCursor(container: HTMLElement) {
   const img = document.createElement("img");
   img.width = 22;
   img.height = 24;
-  wrapper.style.cssText = `position: fixed; z-Index: 999999; left: 0; top: 0`;
+  wrapper.style.cssText = `position: fixed; z-Index: 999999; transform: translate3d(0,0,0)`;
   wrapper.id = "rrweb-cursor";
   img.src = CursorIcon;
   wrapper.appendChild(img);
-  container.appendChild(wrapper);
+  container.insertBefore(wrapper, container.firstChild);
   return wrapper;
 }
 
@@ -186,15 +186,14 @@ export const resetCursorIcon = throttle((cursor) => {
 
 export function setPosition(container: HTMLElement, coord: Coord) {
   const { x, y } = coord;
-  container.style.left = `${x}px`;
-  container.style.top = `${y}px`;
+  container.style.transform = `translate3d(${x}px, ${y}px, 0)`;
 }
 
 export function createWaveAnimation(container: HTMLElement, coord: Coord) {
   const { x, y } = coord;
   const wave = document.createElement("div");
   wave.classList.add("rrweb-click");
-  wave.style.cssText = `position: fixed; z-Index: 99999999; left: ${x}px; top: ${y}px`;
+  wave.style.cssText = `position: fixed; z-Index: 99999999; transform: translate3d(${x}px, ${y}px,0)`;
   container.appendChild(wave);
   setTimeout(() => {
     container.removeChild(wave);
