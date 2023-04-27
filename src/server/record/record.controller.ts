@@ -23,10 +23,11 @@ export class RecordController {
 
   // post /record
   @Post()
-  async save(@Body() body: SaveRecordDTO): Promise<RecordResponse> {
-    const [err] = await this.recordService.create(body);
+  async create(@Body() body: SaveRecordDTO): Promise<RecordResponse> {
+    const [err, data] = await this.recordService.create(body);
     return {
       code: err ? 500 : 200,
+      data: data._id,
       message: err ? err?.message : 'successfully created',
     };
   }
@@ -69,9 +70,10 @@ export class RecordController {
     @Param('_id') _id: string,
     @Body() body: SaveRecordDTO,
   ): Promise<RecordResponse> {
-    const [err] = await this.recordService.edit(_id, body);
+    const [err, data] = await this.recordService.edit(_id, body);
     return {
       code: err ? 500 : 200,
+      data: data._id,
       message: err ? err?.message : 'successfully updated',
     };
   }
