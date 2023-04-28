@@ -8,6 +8,7 @@
   "author": "udbbbn",
   "license": "MIT",
   "dependencies": {
+    "lodash.debounce": "^4.0.8",
     "typescript": "^4.8.2"
   },
   "scripts": {
@@ -15,6 +16,7 @@
     "build": "npx rollup -c"
   },
   "devDependencies": {
+    "@types/lodash.debounce": "^4.0.7",
     "@types/lodash.throttle": "^4.1.7",
     "lodash.throttle": "^4.1.1",
     "postcss": "^8.4.18",

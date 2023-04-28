@@ -1,11 +1,7 @@
-import throttle from "lodash.throttle";
-import { NodeType, noop, storagePrefix } from "./constant";
+import debounce from "lodash.debounce";
+import { NodeType, noop } from "./constant";
 import { autoCompletionURL, loseEfficacy, mutationCompare } from "./utils";
 import { StartParams } from ".";
-
-export const QueueStorageKey = `${storagePrefix}-actionQueue`;
-export const TreeStorageKey = `${storagePrefix}-tree`;
-export const CursorStorageKey = `${storagePrefix}-cursor`;
 
 export type Atom = {
   id: number;
@@ -362,7 +358,7 @@ function kidnapEventListener() {
   EventTarget.prototype.addEventListener = function (type, listener, ...args) {
     if (type === "scroll") {
       const originListener = listener;
-      listener = throttle(
+      listener = debounce(
         (ev) => {
           const { scrollLeft, scrollTop } = ev.target as HTMLElement;
           const target = mirror.get(ev.target);
@@ -385,8 +381,8 @@ function kidnapEventListener() {
             }
           }
         },
-        20,
-        { leading: true }
+        10,
+        { leading: true, trailing: true }
       );
     }
     originMethod.call(this, type, listener, ...args);
@@ -403,7 +399,6 @@ function pushCursorArray() {
   function launchTimeout() {
     timeout = setTimeout(() => {
       if (cursorArray.length) {
-        console.log("emit cursorArray.length", JSON.stringify(cursorArray));
         externalApi.emit({
           cursors: [[...cursorArray]],
         });
@@ -428,28 +423,28 @@ function eventListener() {
   const pushAction = pushActionArray();
   document.addEventListener(
     "mousemove",
-    // throttle(
-    (ev) => {
-      const timeStamp = new Date().getTime();
-      const { clientX, clientY } = ev;
-      const current: CursorActionValue = {
-        x: clientX,
-        y: clientY,
-        timeStamp,
-        type: "move",
-      };
-      console.log("cursor current", current);
-      push(current);
-    }
-    // 20,
-    // {
-    //   leading: true,
-    // }
-    // )
+    debounce(
+      (ev) => {
+        const timeStamp = new Date().getTime();
+        const { clientX, clientY } = ev;
+        const current: CursorActionValue = {
+          x: clientX,
+          y: clientY,
+          timeStamp,
+          type: "move",
+        };
+        push(current);
+      },
+      10,
+      {
+        leading: true,
+        trailing: true,
+      }
+    )
   );
   document.addEventListener(
     "click",
-    throttle(
+    debounce(
       (ev) => {
         const timeStamp = new Date().getTime();
         const { clientX, clientY } = ev;
@@ -461,16 +456,17 @@ function eventListener() {
         };
         push(current);
       },
-      20,
+      10,
       {
         leading: true,
+        trailing: true,
       }
     )
   );
 
   window.addEventListener(
     "resize",
-    throttle(
+    debounce(
       () => {
         const { innerWidth, innerHeight } = window;
         const timeStamp = new Date().getTime();
@@ -483,9 +479,10 @@ function eventListener() {
         };
         pushAction(current);
       },
-      20,
+      10,
       {
         leading: true,
+        trailing: true,
       }
     )
   );

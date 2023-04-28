@@ -4,9 +4,6 @@ import {
   Action,
   ActionType,
   CursorAction,
-  TreeStorageKey,
-  QueueStorageKey,
-  CursorStorageKey,
   CursorActionValue,
   Coord,
   Shape,
@@ -191,7 +188,10 @@ async function replayCursorPath() {
     if (curStepRunningTime + act.timeStamp > cursorRunning[0]?.timeStamp) {
       pushTask(replayCursorPath);
     } else {
-      requestAnimationFrame(replayCursorPath);
+      setTimeout(() => {
+        replayCursorPath();
+      }, cursorRunning[0]?.timeStamp - act.timeStamp);
+      // requestAnimationFrame(replayCursorPath);
     }
   } else {
     pushTask(replayStep);
@@ -297,14 +297,15 @@ function replayStep() {
     const { timeStamp } = actionQueue[0];
     const curStepRunningTime = performance.now() - lastTimeStamp;
     if (curStepRunningTime + step.timeStamp > timeStamp) {
-      tasks.push(replayStep);
-      requestIdleCallback(requestRender);
+      pushTask(replayStep);
     } else {
-      requestAnimationFrame(replayStep);
+      // requestAnimationFrame(replayStep);
+      setTimeout(() => {
+        replayStep();
+      }, timeStamp - step.timeStamp);
     }
   } else if (cursorQueue[curCursorIdx] && cursorQueue[curCursorIdx].length) {
-    tasks.push(replayStep);
-    requestIdleCallback(requestRender);
+    pushTask(replayStep);
   }
 }
 
