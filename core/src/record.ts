@@ -381,7 +381,7 @@ function kidnapEventListener() {
             }
           }
         },
-        10,
+        20,
         { leading: true, trailing: true }
       );
     }
@@ -418,6 +418,12 @@ function pushCursorArray() {
   return push;
 }
 
+/**
+ * we need to use canvas to drawing.
+ * https://stackoverflow.com/a/48136944
+ * because the browser is reporting "the mouse has moved, and it is now here", not "...and went through these pixels".
+ * https://stackoverflow.com/a/5259071
+ */
 function eventListener() {
   const push = pushCursorArray();
   const pushAction = pushActionArray();
@@ -435,7 +441,7 @@ function eventListener() {
         };
         push(current);
       },
-      10,
+      20,
       {
         leading: true,
         trailing: true,
@@ -456,7 +462,7 @@ function eventListener() {
         };
         push(current);
       },
-      10,
+      20,
       {
         leading: true,
         trailing: true,
@@ -479,7 +485,7 @@ function eventListener() {
         };
         pushAction(current);
       },
-      10,
+      20,
       {
         leading: true,
         trailing: true,

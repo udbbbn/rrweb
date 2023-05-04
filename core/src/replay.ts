@@ -17,6 +17,7 @@ import {
 } from "./utils";
 import "./index.css";
 import { ReplayParams } from ".";
+import Player from "./player";
 
 type AtomElement = HTMLElement | Text | SVGElement;
 
@@ -26,8 +27,10 @@ let cursorQueue: CursorAction[];
 let curCursorIdx = 0;
 let cursorRunning: CursorActionValue[] = [];
 let cursorInstance: HTMLDivElement;
+let cursorPrevCoord: Coord = { x: 0, y: 0 };
 let doc: XMLDocument;
 let globalIframeDoc: HTMLElement;
+let player: Player;
 let tasks: Function[] = [];
 
 /**
@@ -49,11 +52,16 @@ async function setFirstScreen() {
   createElementByTree(tree, fragment, { docType });
   const htmlDoc = document.implementation.createHTMLDocument();
   htmlDoc.body.style.margin = "0px";
+  const head = document.head.cloneNode(true);
   /**
    * https://developer.mozilla.org/en-US/docs/Web/API/XMLSerializer
    */
   document.write(new XMLSerializer().serializeToString(htmlDoc));
   document.close();
+  /**
+   * insure css-style existing
+   */
+  document.head.replaceWith(head);
   /**
    * create sandbox ensure inline scripts don't work.
    */
@@ -72,6 +80,7 @@ async function setFirstScreen() {
   iframeDoc!.removeChild(iframeDoc!.lastChild!);
   iframeDoc?.appendChild(fragment);
   cursorInstance = createCursor(iframeDoc?.querySelector("body")!);
+  player = new Player(document.body);
   requestAnimationFrame(replayStep);
 }
 
@@ -179,10 +188,13 @@ async function replayCursorPath() {
   const act = cursorRunning.shift()!;
   if (!!act) {
     const lastCursorTimeStamp = performance.now();
+    const dest = { x: act.x, y: act.y };
     if (act.type === "move") {
-      setPosition(cursorInstance, { x: act.x, y: act.y });
+      setPosition(cursorInstance, dest);
+      player.drawLine(cursorPrevCoord, dest);
+      cursorPrevCoord = dest;
     } else if (act.type === "click") {
-      createWaveAnimation(globalIframeDoc, { x: act.x, y: act.y });
+      createWaveAnimation(globalIframeDoc, dest);
     }
     const curStepRunningTime = performance.now() - lastCursorTimeStamp;
     if (curStepRunningTime + act.timeStamp > cursorRunning[0]?.timeStamp) {
@@ -191,7 +203,6 @@ async function replayCursorPath() {
       setTimeout(() => {
         replayCursorPath();
       }, cursorRunning[0]?.timeStamp - act.timeStamp);
-      // requestAnimationFrame(replayCursorPath);
     }
   } else {
     pushTask(replayStep);
@@ -299,7 +310,6 @@ function replayStep() {
     if (curStepRunningTime + step.timeStamp > timeStamp) {
       pushTask(replayStep);
     } else {
-      // requestAnimationFrame(replayStep);
       setTimeout(() => {
         replayStep();
       }, timeStamp - step.timeStamp);
