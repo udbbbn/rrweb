@@ -189,16 +189,25 @@ export function setPosition(container: HTMLElement, coord: Coord) {
   container.style.transform = `translate3d(${x}px, ${y}px, 0)`;
 }
 
-export function createWaveAnimation(container: HTMLElement, coord: Coord) {
-  const { x, y } = coord;
+export const createWaveAnimation = (() => {
   const wave = document.createElement("div");
-  wave.classList.add("rrweb-click");
-  wave.style.cssText = `position: fixed; z-Index: 99999999; transform: translate3d(${x}px, ${y}px,0)`;
-  container.appendChild(wave);
-  setTimeout(() => {
-    container.removeChild(wave);
-  }, 300);
-}
+  let isAppend = false;
+  wave.style.cssText = `left:0; top: 0; position: fixed; z-Index: 99999999`;
+  return (container: HTMLElement, coord: Coord) => {
+    const { x, y } = coord;
+    wave.style.transform = `translate3d(${x}px, ${y}px,0)`;
+    if (isAppend) {
+      wave.classList.add("rrweb-click");
+    } else {
+      wave.classList.add("rrweb-click");
+      container.appendChild(wave);
+      isAppend = true;
+    }
+    setTimeout(() => {
+      wave.classList.remove("rrweb-click");
+    }, 300);
+  };
+})();
 
 export function sleep(timeout: number) {
   return new Promise<void>((resolve, reject) => {
