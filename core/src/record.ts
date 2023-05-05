@@ -492,6 +492,21 @@ function eventListener() {
       }
     )
   );
+  /**
+   * initial profile
+   */
+  const { innerWidth, innerHeight } = window;
+  externalApi.emit({
+    actions: [
+      {
+        id: -1,
+        timeStamp: new Date().getTime(),
+        changer: { w: innerWidth, h: innerHeight },
+        source: ActionSource[ActionSource.Resize] as unknown as ActionSource,
+        type: ActionType[ActionType.Resize] as unknown as ActionType,
+      },
+    ],
+  });
 }
 
 /**

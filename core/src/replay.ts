@@ -295,8 +295,15 @@ function replayStep() {
     }
     case ActionType[ActionType.Resize] as unknown as ActionType: {
       pushTask(() => {
+        /**
+         * w & h is innerWidth/innerHeight
+         * We need to accrete toolbarHeight.
+         */
+        const { innerHeight, outerHeight } = window;
+        const toolbarHeight = outerHeight - innerHeight;
         const { w, h } = step.changer as Shape;
-        window.resizeTo(w, h);
+        window.resizeTo(w, h + toolbarHeight);
+        player.setCvsProfile(w, h);
       });
       break;
     }

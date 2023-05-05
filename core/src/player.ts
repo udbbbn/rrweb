@@ -5,16 +5,14 @@ export default class Player {
   ctx: CanvasRenderingContext2D | null = null;
   constructor(container: HTMLElement) {
     this.cvs = document.createElement("canvas");
-    this.cvs.width = document.body.clientWidth;
-    this.cvs.height = document.body.clientHeight;
     this.cvs.className = "rrweb-canvas";
     this.ctx = this.cvs.getContext("2d");
-    this.ctx!.strokeStyle = "red";
     container.appendChild(this.cvs);
   }
 
   drawLine(starting: Coord, destination: Coord) {
     this.ctx!.beginPath();
+    this.ctx!.strokeStyle = "red";
     this.ctx!.moveTo(starting.x, starting.y);
     this.ctx!.lineTo(destination.x, destination.y);
     this.ctx!.stroke();
@@ -22,5 +20,10 @@ export default class Player {
     setTimeout(() => {
       this.ctx!.clearRect(0, 0, this.cvs!.width, this.cvs!.height);
     }, 600);
+  }
+
+  setCvsProfile(w: number, h: number) {
+    this.cvs!.width = w;
+    this.cvs!.height = h;
   }
 }
