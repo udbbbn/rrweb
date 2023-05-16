@@ -46,7 +46,9 @@ export default defineComponent({
 
     const getData = async () => {
       const [err, res] = await to<RecordResponse<Record[]>>(
-        fetch("http://127.0.0.1:8000/record/all")
+        fetch("http://127.0.0.1:8000/record/all", {
+          credentials: "include",
+        })
       )
       if (!err) {
         record.value = (res.data || []).map(el => ({

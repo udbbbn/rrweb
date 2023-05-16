@@ -9,7 +9,10 @@ import {
   Param,
   Post,
   Put,
+  Req,
+  Res,
 } from '@nestjs/common';
+import { Response, Request } from 'express';
 
 interface RecordResponse<T = unknown> {
   code: number;
@@ -44,8 +47,11 @@ export class RecordController {
 
   // get /record/all
   @Get('all')
-  async getAll(): Promise<RecordResponse<Record[]>> {
+  async getAll(
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<RecordResponse<Record[]>> {
     const [err, data] = await this.recordService.getAll();
+    response.cookie('rrweb-version', '0.0.1');
     return {
       code: err ? 500 : 200,
       data,
@@ -55,7 +61,12 @@ export class RecordController {
 
   // get /record/:id
   @Get(':_id')
-  async get(@Param('_id') _id: string): Promise<RecordResponse<Record>> {
+  async get(
+    @Param('_id') _id: string,
+    @Req() request: Request,
+  ): Promise<RecordResponse<Record>> {
+    const version = request.cookies['rrweb-version'];
+    console.log('version', version);
     const [err, data] = await this.recordService.get(_id);
     return {
       code: err ? 500 : 200,
