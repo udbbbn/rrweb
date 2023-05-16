@@ -1,6 +1,6 @@
-import { Fragment, defineComponent, ref, watchEffect } from 'vue'
-import { ElButton, ElTable, ElTableColumn, dayjs } from 'element-plus'
-import { to, type RecordResponse } from '@/utils'
+import { defineComponent, ref, watchEffect } from "vue"
+import { ElButton, ElTable, ElTableColumn, dayjs } from "element-plus"
+import { to, type RecordResponse } from "@/utils"
 
 export interface Record {
   createTime: string
@@ -14,7 +14,7 @@ export interface Record {
 }
 
 export default defineComponent({
-  name: 'Table',
+  name: "Table",
   props: {},
   emits: [],
   components: {},
@@ -23,35 +23,35 @@ export default defineComponent({
 
     const columns = [
       {
-        prop: 'projectId',
-        label: '项目Id'
+        prop: "projectId",
+        label: "项目Id",
       },
       {
-        prop: 'projectName',
-        label: '项目名称'
+        prop: "projectName",
+        label: "项目名称",
       },
       {
-        prop: 'moduleId',
-        label: '模块Id'
+        prop: "moduleId",
+        label: "模块Id",
       },
       {
-        prop: 'createTime',
-        label: '创建时间'
+        prop: "createTime",
+        label: "创建时间",
       },
       {
-        prop: 'action',
-        label: '操作'
-      }
+        prop: "action",
+        label: "操作",
+      },
     ]
 
     const getData = async () => {
       const [err, res] = await to<RecordResponse<Record[]>>(
-        fetch('http://127.0.0.1:8000/record/all')
+        fetch("http://127.0.0.1:8000/record/all")
       )
       if (!err) {
-        record.value = (res.data || []).map((el) => ({
+        record.value = (res.data || []).map(el => ({
           ...el,
-          createTime: dayjs(el.createTime).format('YYYY-MM-DD hh:mm:ss')
+          createTime: dayjs(el.createTime).format("YYYY-MM-DD hh:mm:ss"),
         }))
       }
     }
@@ -61,13 +61,13 @@ export default defineComponent({
     })
 
     const openDetail = (item: any) => {
-      window.open(`/player?id=${item._id}`, '', 'resizable')
+      window.open(`/player?id=${item._id}`, "", "resizable")
     }
 
     return () => (
       <ElTable data={record.value}>
-        {columns.map((el) =>
-          el.prop === 'action' ? (
+        {columns.map(el =>
+          el.prop === "action" ? (
             <ElTableColumn fixed="right" label="操作" width={150}>
               {({ row }: any) => (
                 <ElButton
@@ -88,5 +88,5 @@ export default defineComponent({
         )}
       </ElTable>
     )
-  }
+  },
 })

@@ -5,9 +5,9 @@
  */
 
 export interface RecordResponse<T = unknown> {
-  code: number
-  data?: T
-  message: string
+  code: number;
+  data?: T;
+  message: string;
 }
 
 export function to<T extends RecordResponse, U = Error>(
@@ -19,9 +19,9 @@ export function to<T extends RecordResponse, U = Error>(
     .then<[null, T]>((data: T) => [null, data]) // 执行成功，返回数组第一项为 null。第二个是结果。
     .catch<[U, undefined]>((err: U & {}) => {
       if (errorExt) {
-        Object.assign(err, errorExt)
+        Object.assign(err, errorExt);
       }
 
-      return [err, undefined] // 执行失败，返回数组第一项为错误信息，第二项为 undefined
-    })
+      return [err, undefined]; // 执行失败，返回数组第一项为错误信息，第二项为 undefined
+    });
 }
