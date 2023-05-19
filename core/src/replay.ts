@@ -15,7 +15,7 @@ import {
   setAttributes,
   setPosition,
 } from "./utils";
-import "./index.css";
+import "./index.scss";
 import { ReplayParams } from ".";
 import Player from "./player";
 
@@ -23,6 +23,7 @@ type AtomElement = HTMLElement | Text | SVGElement;
 
 let tree: Atom;
 let actionQueue: Action[];
+let curActionIdx = 0;
 let cursorQueue: CursorAction[];
 let curCursorIdx = 0;
 let cursorRunning: CursorActionValue[] = [];
@@ -37,8 +38,6 @@ let tasks: Function[] = [];
  * when replaying specification of mirror-variable is { [id]: { id: Number, source: '', type: '' } }
  */
 const mirror = new Map<Atom["id"], AtomElement>();
-
-(window as any).replayMirror = mirror;
 
 /**
  * first-screen alone setting
@@ -81,7 +80,12 @@ async function setFirstScreen() {
   iframeDoc?.appendChild(fragment);
   cursorInstance = createCursor(iframeDoc?.querySelector("body")!);
   player = new Player(document.body);
-  requestAnimationFrame(replayStep);
+  player.registerEvents({
+    play: () => {
+      requestAnimationFrame(replayStep);
+    },
+    pause: () => {},
+  });
 }
 
 function recursionChild(n: Atom, container: Node) {
@@ -214,8 +218,9 @@ async function replayCursorPath() {
  */
 function replayStep() {
   if (
-    !actionQueue.length &&
-    !(cursorQueue[curCursorIdx] && cursorQueue[curCursorIdx].length)
+    player.status === "pause" ||
+    (!actionQueue.length &&
+      !(cursorQueue[curCursorIdx] && cursorQueue[curCursorIdx].length))
   )
     return;
   const step = actionQueue.shift()!;

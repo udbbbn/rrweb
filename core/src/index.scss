@@ -1,0 +1,87 @@
+@keyframes wave {
+  0% {
+    top: calc((100% - 10px) / 2);
+    left: calc((100% - 10px) / 2);
+    width: 10px;
+    height: 10px;
+  }
+  100% {
+    top: calc((100% - 30px) / 2);
+    left: calc((100% - 30px) / 2);
+    width: 30px;
+    height: 30px;
+  }
+}
+
+.rrweb-click:after {
+  content: " ";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  left: -5px;
+  border-radius: 50%;
+  border: 1px solid rgb(150, 150, 150);
+  animation: wave 0.4s forwards;
+}
+
+.rrweb-canvas {
+  width: 100vw;
+  height: calc(100vh - 60px);
+  position: fixed;
+  left: 0;
+  top: 0;
+}
+
+  .rrweb-controller {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    position: fixed;
+    width: 100vw;
+    min-width: 400px;
+    height: 60px;
+    bottom: 0;
+    padding: 5px 20px 0;
+    background-color: #fff;
+    border-top: 1px solid #9b9b9b;
+    .rrweb-timeline {
+      display: flex;
+      width: 100%;
+      height: 20px;
+      box-sizing: border-box;
+      .rrweb-time {
+        font-size: 14px;
+        margin: 0 8px;
+      }
+      .rrweb-progress {
+        position: relative;
+        width: 100%;
+        height: 2px;
+        background-color: #9b9b9b;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+      .rrweb-punctation {
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        left: 0;
+        top: -10px;
+        background-color: bisque;
+        cursor: pointer;
+      }
+    }
+    .rrweb-panel {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      &-play {
+        width: 25px;
+        height: 25px;
+        cursor: pointer;
+      }
+    }
+  }

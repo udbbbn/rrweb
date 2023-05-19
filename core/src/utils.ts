@@ -1,5 +1,5 @@
 import throttle from "lodash.throttle";
-import { CursorIcon } from "./constant";
+import { CursorIcon, PlayIcon } from "./constant";
 import { Atom, Coord } from "./record";
 
 window.requestIdleCallback =
@@ -153,7 +153,7 @@ export async function createSandbox(container: HTMLElement) {
     frame.setAttribute("sandbox", "allow-same-origin");
     frame.setAttribute("frameborder", "0");
     frame.style.width = "100vw";
-    frame.style.height = "100vh";
+    frame.style.height = "calc(100vh - 60px)";
     /**
      * Iframe is an inline-block element, so it has an empty inline block element question.
      *
@@ -178,6 +178,51 @@ export function createCursor(container: HTMLElement) {
   wrapper.appendChild(img);
   container.insertBefore(wrapper, container.firstChild);
   return wrapper;
+}
+
+export function createPlayer(container: HTMLElement) {
+  const controller = document.createElement("div");
+  controller.className = "rrweb-controller";
+  const timeline = document.createElement("div");
+  /**
+   * timeline
+   */
+  timeline.className = "rrweb-timeline";
+  const timeStart = document.createElement("div");
+  timeStart.className = "rrweb-time";
+  timeStart.innerText = "00:00";
+  timeStart.id = "rrweb-time-start";
+  const timeEnd = document.createElement("div");
+  timeEnd.className = "rrweb-time";
+  timeEnd.innerText = "00:00";
+  timeEnd.id = "rrweb-time-end";
+  const progress = document.createElement("div");
+  progress.className = "rrweb-progress";
+  const punctation = document.createElement("div");
+  punctation.className = "rrweb-punctation";
+  progress.appendChild(punctation);
+  timeline.appendChild(timeStart);
+  timeline.appendChild(progress);
+  timeline.appendChild(timeEnd);
+  controller.appendChild(timeline);
+  /**
+   * play
+   */
+  const panel = document.createElement("div");
+  panel.className = "rrweb-panel";
+  const play = document.createElement("img");
+  play.className = "rrweb-panel-play";
+  play.src = PlayIcon;
+  panel.appendChild(play);
+  controller.appendChild(panel);
+  container.appendChild(controller);
+  return {
+    timeStart,
+    timeEnd,
+    progress,
+    punctation,
+    play,
+  };
 }
 
 export const resetCursorIcon = throttle((cursor) => {
