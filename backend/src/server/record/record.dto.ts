@@ -15,6 +15,8 @@ export class SaveRecordDTO {
   // @IsNotEmpty({ message: 'dom structure cannot be empty' })
   structure: string;
 
+  timeTable: string;
+
   actionQueue: string;
 
   cursorQueue: string;

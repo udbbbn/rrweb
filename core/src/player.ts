@@ -1,13 +1,14 @@
-import { Coord } from "./record";
-import dayjs from "dayjs";
-import { createPlayer } from "./utils";
+import { Coord, TimeTable } from "./record";
+import { createPlayer, timeToSecond } from "./utils";
 import { PauseIcon, PlayIcon, noop } from "./constant";
+import dayjs from "dayjs";
 
 type KeysMatching<T> = NonNullable<{ [K in keyof T]: K }[keyof T]>;
 
 type PlayerEvents = {
   play: () => void;
   pause: () => void;
+  onProcessChange: (tb: Partial<{ action: number; cursor: number }>) => void;
 };
 export default class Player {
   cvs: HTMLCanvasElement | null = null;
@@ -18,6 +19,7 @@ export default class Player {
   events: PlayerEvents = {
     play: noop,
     pause: noop,
+    onProcessChange: noop,
   };
   /**
    * record timeStamp.
@@ -27,7 +29,21 @@ export default class Player {
   timeEnd: number | null = null;
   status: "playing" | "pause" = "pause";
 
-  constructor(container: HTMLElement) {
+  /**
+   * proxy target can update corresponding ui automatically
+   */
+  panel: Player;
+  /**
+   * used to process time
+   */
+  timeBenchmark: number = 0;
+
+  timeTable: TimeTable = {};
+
+  timer: NodeJS.Timer | null = null;
+
+  constructor(container: HTMLElement, timeTable: TimeTable) {
+    this.timeTable = timeTable;
     /**
      * create canvas
      */
@@ -38,28 +54,72 @@ export default class Player {
     /**
      * create player
      */
-    const { timeStart, timeEnd, progress, punctation, play } =
+    const { timeStart, timeEnd, progress, progressDone, punctation, play } =
       createPlayer(container);
-    this.observer({ timeStart, timeEnd, progress, punctation, play });
+    this.panel = this.observer({
+      timeStart,
+      timeEnd,
+      progress,
+      progressDone,
+      punctation,
+      play,
+    });
   }
 
   observer({
     timeStart,
     timeEnd,
     progress,
+    progressDone,
     punctation,
     play,
   }: ReturnType<typeof createPlayer>) {
+    progress.addEventListener("click", (ev) => {
+      const rate = ev.offsetX / 180;
+      const second = Math.floor(timeToSecond(timeEnd.innerText) * rate);
+      this.events.onProcessChange(this.timeTable[second]);
+    });
     const panel = new Proxy(this, {
       set: (target: typeof this, prop: KeysMatching<Player>, value) => {
         if (prop === "status") {
           if ((value as Player["status"]) === "playing") {
             play.src = PauseIcon;
             this.events.play();
+            queueMicrotask(() => {
+              this.setTimer();
+            });
           } else {
             play.src = PlayIcon;
             this.events.pause();
+            this.clearTimer();
           }
+        }
+        if (prop === "timeStart") {
+          timeStart.innerText = dayjs(value)
+            .subtract(this.timeBenchmark, "ms")
+            .subtract(8, "hour")
+            .format("HH:mm:ss");
+          progressDone.style.width =
+            ((value! - this.timeBenchmark) /
+              (this.timeEnd! - this.timeBenchmark)) *
+              100 +
+            "%";
+          punctation.style.left = `calc(${
+            ((value! - this.timeBenchmark) /
+              (this.timeEnd! - this.timeBenchmark)) *
+              100 +
+            "%"
+          } - 10px)`;
+        }
+        if (prop === "timeEnd") {
+          /**
+           * avoid event haven't processing. so +1s.
+           */
+          value = dayjs(value).add(1, "s").endOf("second").valueOf();
+          timeEnd.innerText = dayjs(value)
+            .subtract(this.timeBenchmark, "ms")
+            .subtract(8, "hour")
+            .format("HH:mm:ss");
         }
         (target[prop] as Player[KeysMatching<Player>]) = value;
         return true;
@@ -72,12 +132,31 @@ export default class Player {
         panel.status = "pause";
       }
     });
-    /**
-     * autoplay
-     */
-    setTimeout(() => {
-      play.click();
-    });
+    return panel;
+  }
+
+  setTimer() {
+    if (!this.timer) {
+      this.timer = setInterval(() => {
+        if (this.status === "playing") {
+          const ts = dayjs(this.timeStart).add(1, "second");
+          if (ts.valueOf() >= dayjs(this.timeEnd).valueOf()) {
+            console.log("preset timer pause", ts.valueOf(), this.timeEnd);
+            setTimeout(() => {
+              console.log("set timer pause");
+              this.panel.status = "pause";
+            }, ts.valueOf() - this.timeEnd!);
+          } else {
+            this.panel.timeStart = ts.valueOf();
+          }
+        }
+      }, 1000);
+    }
+  }
+
+  clearTimer() {
+    clearInterval(this.timer!);
+    this.timer = null;
   }
 
   registerEvents(event: PlayerEvents) {
@@ -98,6 +177,6 @@ export default class Player {
 
   setCvsProfile(w: number, h: number) {
     this.cvs!.width = w;
-    this.cvs!.height = h - 60;
+    this.cvs!.height = h;
   }
 }

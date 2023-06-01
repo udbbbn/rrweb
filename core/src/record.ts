@@ -62,6 +62,13 @@ export type Action = {
 let id = 0;
 
 const actionQueue: Action[] = [];
+const actionPush = (act: Action) => {
+  const second = Math.floor((act.timeStamp - baseTimeStamp) / 1000);
+  !timeTable[second] && (timeTable[second] = {});
+  timeTable[second]?.action === undefined &&
+    (timeTable[second]!.action = actionQueue.length + 1);
+  actionQueue.push(act);
+};
 
 export type CursorActionValue = Coord & {
   timeStamp: number;
@@ -70,12 +77,20 @@ export type CursorActionValue = Coord & {
 
 export type CursorAction = CursorActionValue[];
 
-/**
- * matrix
- */
-const cursorQueue: CursorAction[] = [];
-
 let externalApi: StartParams = { emit: noop };
+/**
+ * (action/cursor timeStamp - baseTimeStamp) / 1000 = current progress (unit is second)
+ */
+let baseTimeStamp: number = 0;
+/**
+ * record per second index of cursor/action in queue
+ */
+export type TimeTable = {
+  [key: number]: Partial<{ action: number; cursor: number }>;
+};
+const timeTable: Partial<TimeTable> = {};
+let latestTimeIdx = 0;
+(window as any).timeTable = timeTable;
 /**
  * this variable will change along with dom tree
  */
@@ -89,7 +104,8 @@ let originTree: Atom;
  */
 
 const observer = new MutationObserver((mutationList, observer) => {
-  let curQueueIdx = actionQueue.length;
+  const curQueueIdx = actionQueue.length;
+  const curTimeTableIdx = Object.keys(timeTable).length;
   /**
    * variable of list no processing is required.
    */
@@ -130,7 +146,7 @@ const observer = new MutationObserver((mutationList, observer) => {
                * if id not exist, we can think about the node existing in the addedNodes list.
                * And we should delete it directly from the addedNodes list.
                */
-              actionQueue.push({
+              actionPush({
                 id,
                 timeStamp: new Date().getTime(),
                 source: ActionSource[
@@ -178,7 +194,7 @@ const observer = new MutationObserver((mutationList, observer) => {
                 const id = n!.id;
                 tree.id = id;
                 tree.childNodes = [n!];
-                actionQueue.push({
+                actionPush({
                   parentId: mirror.get(mutation.target)!.id,
                   id,
                   timeStamp: new Date().getTime(),
@@ -285,13 +301,13 @@ const observer = new MutationObserver((mutationList, observer) => {
 
   for (const node of attributeNodes.values()) {
     if (node.initialValue !== node.currentValue) {
-      actionQueue.push(attributeAction[node.index]);
+      actionPush(attributeAction[node.index]);
     }
   }
 
   for (const node of characterNodes.values()) {
     if (node.initialValue !== node.currentValue) {
-      actionQueue.push(characterAction[node.index]);
+      actionPush(characterAction[node.index]);
     }
   }
 
@@ -299,12 +315,17 @@ const observer = new MutationObserver((mutationList, observer) => {
   if (actionQueue.length !== curQueueIdx) {
     /**
      * incremental update
-     *
-     * Simulating communication with server.
      */
     const waitDepositArray = actionQueue.slice(curQueueIdx);
+    const waitDepositTime = Object.keys(timeTable)
+      .slice(curTimeTableIdx)
+      .reduce<TimeTable>(
+        (t, c) => ({ ...t, [c]: timeTable[c as unknown as number] }),
+        {}
+      );
     waitDepositArray.length &&
       externalApi.emit({
+        timeTable: waitDepositTime,
         actions: waitDepositArray,
       });
   }
@@ -329,24 +350,37 @@ function pushActionArray() {
    * Every 500 milliseconds put it into the actionQueue.
    */
   let actionArray: Action[] = [];
+  let latestActIdx = actionQueue.length;
   let timeout: any;
   function launchTimeout(actionArray: Action[]) {
     timeout = setTimeout(() => {
       if (actionArray.length) {
+        let lastestTimeKeys = Object.keys(timeTable).slice(latestTimeIdx);
         externalApi.emit({
+          timeTable: lastestTimeKeys.reduce<TimeTable>(
+            (t, c) => ({ ...t, [c]: timeTable[c as unknown as number] }),
+            {}
+          ),
           actions: actionArray,
         });
+        latestActIdx += actionArray.length;
+        latestTimeIdx += lastestTimeKeys.length;
         actionArray.length = 0;
         timeout = null;
       }
     }, 500);
   }
 
-  function push(cur: Action) {
+  function push(act: Action) {
     if (!actionArray.length && !timeout) {
       launchTimeout(actionArray);
     }
-    actionArray.push(cur);
+
+    const second = Math.floor((act.timeStamp - baseTimeStamp) / 1000);
+    !timeTable[second] && (timeTable[second] = {});
+    timeTable[second]?.action === undefined &&
+      (timeTable[second]!.action = latestActIdx + actionArray.length + 1);
+    actionArray.push(act);
   }
 
   return push;
@@ -395,24 +429,37 @@ function pushCursorArray() {
    * Every 500 milliseconds put it into the cursorQueue.
    */
   let cursorArray: CursorActionValue[] = [];
+  let latestCursorIdx = cursorArray.length;
   let timeout: any;
   function launchTimeout() {
     timeout = setTimeout(() => {
       if (cursorArray.length) {
+        let lastestTimeKeys = Object.keys(timeTable).slice(latestTimeIdx);
         externalApi.emit({
-          cursors: [[...cursorArray]],
+          timeTable: lastestTimeKeys.reduce<TimeTable>(
+            (t, c) => ({ ...t, [c]: timeTable[c as unknown as number] }),
+            {}
+          ),
+          cursors: [...cursorArray],
         });
+        latestCursorIdx += cursorArray.length;
+        latestTimeIdx += lastestTimeKeys.length;
         cursorArray.length = 0;
         timeout = null;
       }
     }, 500);
   }
 
-  function push(cur: CursorActionValue) {
+  function push(act: CursorActionValue) {
     if (!cursorArray.length && !timeout) {
       launchTimeout();
     }
-    cursorArray.push(cur);
+
+    const second = Math.floor((act.timeStamp - baseTimeStamp) / 1000);
+    !timeTable[second] && (timeTable[second] = {});
+    timeTable[second]?.cursor === undefined &&
+      (timeTable[second]!.cursor = latestCursorIdx + cursorArray.length + 1);
+    cursorArray.push(act);
   }
 
   return push;
@@ -496,11 +543,12 @@ function eventListener() {
    * initial profile
    */
   const { innerWidth, innerHeight } = window;
+  baseTimeStamp = new Date().getTime();
   externalApi.emit({
     actions: [
       {
         id: -1,
-        timeStamp: new Date().getTime(),
+        timeStamp: baseTimeStamp,
         changer: { w: innerWidth, h: innerHeight },
         source: ActionSource[ActionSource.Resize] as unknown as ActionSource,
         type: ActionType[ActionType.Resize] as unknown as ActionType,

@@ -152,8 +152,11 @@ export async function createSandbox(container: HTMLElement) {
     const frame = document.createElement("iframe");
     frame.setAttribute("sandbox", "allow-same-origin");
     frame.setAttribute("frameborder", "0");
+    frame.style.position = "absolute";
+    frame.style.top = "0px";
+    frame.style.left = "0px";
     frame.style.width = "100vw";
-    frame.style.height = "calc(100vh - 60px)";
+    frame.style.height = "calc(100vh)";
     /**
      * Iframe is an inline-block element, so it has an empty inline block element question.
      *
@@ -198,8 +201,11 @@ export function createPlayer(container: HTMLElement) {
   timeEnd.id = "rrweb-time-end";
   const progress = document.createElement("div");
   progress.className = "rrweb-progress";
+  const progressDone = document.createElement("div");
+  progressDone.className = "rrweb-progress-done";
   const punctation = document.createElement("div");
   punctation.className = "rrweb-punctation";
+  progress.appendChild(progressDone);
   progress.appendChild(punctation);
   timeline.appendChild(timeStart);
   timeline.appendChild(progress);
@@ -220,6 +226,7 @@ export function createPlayer(container: HTMLElement) {
     timeStart,
     timeEnd,
     progress,
+    progressDone,
     punctation,
     play,
   };
@@ -293,4 +300,20 @@ export function mutationCompare(a: MutationRecord, b: MutationRecord) {
     : b.type === "childList"
     ? 1
     : 0;
+}
+
+/**
+ *  translate '00:00:00' to second
+ *
+ *  e.g '00:05:24' -> 324
+ * @param time '00:00:00'
+ */
+export function timeToSecond(time: string): number {
+  return time
+    .match(/(\d+)/g)!
+    .reduce(
+      (t, c, i) =>
+        t + (i === 0 ? Number(c) * 3600 : i === 1 ? Number(c) * 60 : Number(c)),
+      0
+    );
 }

@@ -1,4 +1,9 @@
-import initialization, { Action, Atom, CursorAction } from "./record";
+import initialization, {
+  Action,
+  Atom,
+  CursorAction,
+  TimeTable,
+} from "./record";
 import { replay } from "./replay";
 
 export interface StartParams {
@@ -10,8 +15,9 @@ export interface StartParams {
    */
   emit: (
     events: Partial<{
+      timeTable: TimeTable;
       actions: Action[];
-      cursors: CursorAction[];
+      cursors: CursorAction;
     }> | null,
     fullSnapshot?: Atom | null
   ) => void;
@@ -23,8 +29,9 @@ export interface StartParams {
 
 export interface ReplayParams {
   fullSnapshot: Atom;
+  timeTable: TimeTable;
   actions: Action[];
-  cursors: CursorAction[];
+  cursors: CursorAction;
 }
 
 export default {

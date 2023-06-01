@@ -8,6 +8,7 @@ export interface Record {
   projectId: string
   projectName: string
   structure: string
+  timeTable: string
   actionQueue: string
   cursorQueue: string
   _id: string

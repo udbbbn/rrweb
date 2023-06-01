@@ -30,6 +30,7 @@ export default defineComponent<Props>({
         }
         rrweb.replay({
           fullSnapshot: JSON.parse(record.value.structure),
+          timeTable: JSON.parse(record.value.timeTable || JSON.stringify({})),
           actions: JSON.parse(record.value.actionQueue || JSON.stringify([])),
           cursors: JSON.parse(record.value.cursorQueue || JSON.stringify([])),
         })

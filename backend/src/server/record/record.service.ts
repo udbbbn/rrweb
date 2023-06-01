@@ -55,6 +55,19 @@ export class RecordService {
           : JSON.parse(body.cursorQueue);
         body.cursorQueue = JSON.stringify(cursorQueue);
       }
+      if (body.timeTable) {
+        const origin = data.timeTable
+          ? (JSON.parse(data.timeTable) as {})
+          : null;
+        if (origin) {
+          const tb = JSON.parse(body.timeTable);
+          Object.keys(tb).forEach((k) => {
+            origin[k] = tb[k];
+          });
+        }
+        const timeTable = origin ? origin : JSON.parse(body.timeTable);
+        body.timeTable = JSON.stringify(timeTable);
+      }
       return await to(this.recordModel.findByIdAndUpdate(_id, body));
     }
   }

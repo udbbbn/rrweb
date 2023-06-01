@@ -6,6 +6,7 @@ export interface Record extends Document {
   projectName: string;
   moduleId: string;
   structure: string;
+  timeTable: string;
   actionQueue: string;
   cursorQueue: string;
   createTime: number;
