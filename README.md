@@ -3,7 +3,7 @@ record and replay from web.
 
 --- 
 
-In order to better manage that I intergrate three single-repo to a mono-repo.
+In order to better manage that I integrate three single-repo to a mono-repo.
 
 # rrweb-core
 
@@ -15,7 +15,7 @@ In order to better manage that I intergrate three single-repo to a mono-repo.
 
 ## How to use
 
-```js
+```js。
 import rrweb from "rrweb";
 
 let curRRWebId = null;
@@ -93,3 +93,9 @@ setInterval(() => {
     }
 }, 1000);
 ```
+
+# Demonstration
+
+click and watch the video.
+
+[![Watch the video](https://raw.githubusercontent.com/udbbbn/Img/master/rrweb-demonstration.gif)](https://github.com/udbbbn/Img/blob/master/rrweb-demonstration.mp4)
